@@ -1,4 +1,7 @@
 {
   "name": "VortexWallet",
-  "displayName": "VortexWallet"
+  "displayName": "VortexWallet",
+  "plugins": [
+    "expo-secure-store"
+  ]
 }
