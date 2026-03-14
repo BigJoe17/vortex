@@ -19,10 +19,11 @@ import {
   RefreshControl,
   TextInput,
   FlatList,
+  Switch, // Added Switch
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
 import {Ionicons} from '@expo/vector-icons';
-import {colors, typography, spacing, borderRadius} from '@theme';
+import {colors, typography, spacing, borderRadius, useTheme} from '@theme';
 import {useAuthStore} from '@store/authStore';
 import {useWalletStore} from '@store/walletStore';
 import {useTransactionStore} from '@store/transactionStore';
@@ -37,6 +38,12 @@ import {
   waitForConfirmation,
 } from '@services/transaction/transactionService';
 import {TokenRow} from '../../components/wallet/TokenRow';
+import {WalletSummaryCard} from '../../components/wallet/WalletSummaryCard';
+import {TokenSection} from '../../components/wallet/TokenSection';
+import {NFTSection} from '../../components/wallet/NFTSection';
+import {AssetSwitcher} from '../../components/wallet/AssetSwitcher';
+import {FloatingNavBar} from '../../components/navigation/FloatingNavBar';
+import {authenticateUser} from '../../services/security/biometricService'; // Added Biometrics
 import type {MainTabParamList, WalletStackParamList} from './types';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 
@@ -55,6 +62,9 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
   const isLoadingBalances = useWalletStore((state) => state.isLoadingBalances);
   const setTokens = useWalletStore((state) => state.setTokens);
   const setLoadingBalances = useWalletStore((state) => state.setLoadingBalances);
+
+  // Layout State
+  const [activeTab, setActiveTab] = useState<'tokens' | 'nfts'>('tokens');
 
   // New Token Store
   const erc20Tokens = useTokenStore((state) => state.tokens);
@@ -76,14 +86,14 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
       const rawErc20s = await fetchTokens(address, network);
 
       // 3. USD Pricing
-      const nativeSymbol = balances[0]?.symbol || 'ETH';
-      const symbolsToFetch = [nativeSymbol, ...rawErc20s.map((t) => t.symbol)];
-      const prices = await fetchTokenPrices(symbolsToFetch, network as 'ethereum' | 'polygon');
+      // CoinGecko token_price endpoint requires contract addresses
+      const addressesToFetch = rawErc20s.map((t) => t.address);
+      const prices = await fetchTokenPrices(addressesToFetch, network as 'ethereum' | 'polygon');
 
       // 4. Update Token Store with Prices
       const tokensWithUsd = rawErc20s.map((t) => ({
         ...t,
-        balanceUsd: getTokenUsdValue(t.balanceFormatted, prices[t.symbol.toLowerCase()] || 0),
+        balanceUsd: getTokenUsdValue(t.balanceFormatted, prices[t.address.toLowerCase()] || prices[t.address] || 0),
       }));
       setErc20Tokens(tokensWithUsd);
 
@@ -124,13 +134,11 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : '...';
 
+  const {colors} = useTheme();
+
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screen}>
-      <FlatList
-        data={[...tokens, ...erc20Tokens]}
-        keyExtractor={(item) => item.address + item.symbol}
+    <View style={[styles.screen, {backgroundColor: colors.background.primary}]}>
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -140,95 +148,55 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
             tintColor={colors.brand.primary}
             colors={[colors.brand.primary]}
           />
-        }
-        ListHeaderComponent={
-          <>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.greeting}>Good evening 👋</Text>
-              <Text style={styles.username}>@{user?.username ?? 'user'}</Text>
-            </View>
+        }>
+        {/* Top Summary Card */}
+        <WalletSummaryCard
+          username={user?.username}
+          address={address ?? undefined}
+          network={network}
+          totalUsdDisplay={displayTotalUsd}
+          onSend={() => navigation.navigate('SendScreen')}
+          onReceive={() => Alert.alert('Receive', 'Show QR code modal')}
+          onBuy={() => Alert.alert('Buy', 'Fiat onramp integration coming soon')}
+          onSwap={() => Alert.alert('Swap', 'DEX integration coming soon')}
+        />
 
-            {/* Balance Card */}
-            <LinearGradient
-              colors={[colors.brand.primary, '#4A3CB5', '#2D2080']}
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 1}}
-              style={styles.balanceCard}>
-              <Text style={styles.balanceLabel}>Wallet Balance</Text>
-              <Text style={[styles.balanceAmount, {fontSize: 36, fontWeight: '700'}]}>
-                {displayTotalUsd}
-              </Text>
-              <View style={styles.balanceRow}>
-                <Text style={styles.balanceAddressLabel}>{displayAddress}</Text>
-                <Text style={styles.balancePeriod}>{network}</Text>
-              </View>
-            </LinearGradient>
+        {/* Tab Switcher */}
+        <AssetSwitcher activeTab={activeTab} onChangeTab={setActiveTab} />
 
-            {/* Quick Actions */}
-            <View style={styles.actionsRow}>
-              <TouchableOpacity
-                style={styles.actionItem}
-                onPress={() => navigation.navigate('SendScreen')}
-                activeOpacity={0.7}>
-                <View style={styles.actionIcon}>
-                  <Ionicons name="arrow-up" size={22} color={colors.text.primary} />
-                </View>
-                <Text style={styles.actionLabel}>Send</Text>
-              </TouchableOpacity>
-              <View style={styles.actionItem}>
-                <View style={styles.actionIcon}>
-                  <Ionicons name="arrow-down" size={22} color={colors.text.primary} />
-                </View>
-                <Text style={styles.actionLabel}>Receive</Text>
+        {/* Tokens List Section */}
+        {activeTab === 'tokens' ? (
+          <TokenSection isLoading={isLoadingBalances || isErc20Loading}>
+            {[...tokens, ...erc20Tokens].map((item, index) => {
+              const isNative = index < tokens.length;
+              return (
+                <TokenRow
+                  key={item.address + item.symbol + index}
+                  symbol={item.symbol}
+                  name={item.name}
+                  balanceFormatted={item.balanceFormatted}
+                  balanceUsd={'balanceUsd' in item ? (item as any).balanceUsd : null}
+                  logo={'logo' in item ? (item as any).logo : undefined}
+                  primaryColor={isNative ? colors.brand.primary : '#6C5CE7'}
+                />
+              );
+            })}
+            {tokens.length === 0 && erc20Tokens.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  {isLoadingBalances || isErc20Loading ? 'Loading balances...' : 'No tokens found'}
+                </Text>
               </View>
-              <View style={styles.actionItem}>
-                <View style={styles.actionIcon}>
-                  <Ionicons name="swap-horizontal" size={22} color={colors.text.primary} />
-                </View>
-                <Text style={styles.actionLabel}>Swap</Text>
-              </View>
-            </View>
-
-            {/* Token list */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Tokens</Text>
-              {(isLoadingBalances || isErc20Loading) && (
-                <ActivityIndicator size="small" color={colors.brand.primary} />
-              )}
-            </View>
-          </>
-        }
-        renderItem={({item}) => {
-          // Both native tokens and ERC20 tokens share `symbol`, `name`, `balanceFormatted`
-          // ERC20 tokens also have `balanceUsd` and `logo`
-          const isNative = item.address === 'native';
-          return (
-            <TokenRow
-              symbol={item.symbol}
-              name={item.name}
-              balanceFormatted={item.balanceFormatted}
-              balanceUsd={'balanceUsd' in item ? (item as any).balanceUsd : null}
-              logo={'logo' in item ? (item as any).logo : undefined}
-              primaryColor={isNative ? colors.brand.primary : '#6C5CE7'}
-            />
-          );
-        }}
-        ListEmptyComponent={
-          tokens.length === 0 && erc20Tokens.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                {isLoadingBalances || isErc20Loading ? 'Loading balances...' : 'No tokens found'}
-              </Text>
-            </View>
-          ) : null
-        }
-        ListFooterComponent={<RecentActivity />}
-      />
-    </LinearGradient>
+            )}
+          </TokenSection>
+        ) : (
+          /* NFTs Section Placeholder */
+          <NFTSection />
+        )}
+      </ScrollView>
+    </View>
   );
 }
-
 // ── Recent Activity Component ────────────────────────────────
 
 function RecentActivity(): React.JSX.Element {
@@ -237,7 +205,7 @@ function RecentActivity(): React.JSX.Element {
   const allTxs = [...pendingTxs, ...transactions].slice(0, 10);
 
   return (
-    <>
+    <View style={{paddingHorizontal: spacing.xl}}>
       <View style={[styles.sectionHeader, {marginTop: spacing['2xl']}]}>
         <Text style={styles.sectionTitle}>Recent Activity</Text>
       </View>
@@ -274,7 +242,7 @@ function RecentActivity(): React.JSX.Element {
           <Text style={styles.emptyStateText}>No transactions yet</Text>
         </View>
       )}
-    </>
+    </View>
   );
 }
 
@@ -330,7 +298,7 @@ function SendScreen({navigation}: {navigation: WalletNavProp}): React.JSX.Elemen
       style={styles.screen}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, {paddingBottom: 120}]}
+        contentContainerStyle={[styles.paddedScrollContent, {paddingBottom: 120}]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         {/* Header */}
@@ -425,12 +393,30 @@ function ConfirmSendScreen({route, navigation}: {
   const updateTransaction = useTransactionStore((s) => s.updateTransaction);
   const setTokens = useWalletStore((s) => s.setTokens);
   const address = useWalletStore((s) => s.address);
+  const isBiometricEnabled = useAuthStore((s) => s.isBiometricEnabled);
 
   const {to, amount, gasFee} = route.params;
   const symbol = tokens.length > 0 ? tokens[0]!.symbol : 'ETH';
 
   const handleConfirm = async () => {
     setIsSending(true);
+
+   
+    
+    if (isBiometricEnabled) {
+    const auth = await authenticateUser('Confirm Transaction');
+
+    if (!auth.success) {
+      setIsSending(false);
+
+      // Tell the user what happened — don't silently fail
+      if (auth.reason !== 'cancelled') {
+        Alert.alert('Authentication Failed', auth.message);
+      }
+      return;
+    }
+    }
+
     try {
       // 1. Send transaction
       const result = await sendNativeTransaction(to, amount, network);
@@ -479,7 +465,7 @@ function ConfirmSendScreen({route, navigation}: {
       style={styles.screen}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, {paddingBottom: 120}]}
+        contentContainerStyle={[styles.paddedScrollContent, {paddingBottom: 120}]}
         showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -575,7 +561,7 @@ function RewardsScreen(): React.JSX.Element {
       style={styles.screen}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.paddedScrollContent}
         showsVerticalScrollIndicator={false}>
         <Text style={styles.pageTitle}>Rewards</Text>
 
@@ -633,7 +619,7 @@ function MiniAppsScreen(): React.JSX.Element {
       style={styles.screen}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.paddedScrollContent}
         showsVerticalScrollIndicator={false}>
         <Text style={styles.pageTitle}>MiniApps</Text>
         <Text style={styles.pageSubtitle}>
@@ -677,6 +663,10 @@ function MiniAppsScreen(): React.JSX.Element {
 function AccountScreen(): React.JSX.Element {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const isBiometricEnabled = useAuthStore((state) => state.isBiometricEnabled);
+  const setBiometricEnabled = useAuthStore((state) => state.setBiometricEnabled);
+
+  const {colors} = useTheme();
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to log out?', [
@@ -685,13 +675,29 @@ function AccountScreen(): React.JSX.Element {
     ]);
   };
 
+  const handleToggleBiometrics = async (value: boolean) => {
+    if (value) {
+      // Trying to enable biometrics
+      const authenticated = await authenticateUser('Enable Biometric Unlock');
+      if (authenticated) {
+        setBiometricEnabled(true);
+      } else {
+        // Leave the switch off if they canceled or failed
+        setBiometricEnabled(false);
+      }
+    } else {
+      // Disabling biometrics doesn't strictly need a prompt, but we disable it
+      setBiometricEnabled(false);
+    }
+  };
+
   return (
     <LinearGradient
       colors={[colors.background.primary, '#0D0D1A']}
       style={styles.screen}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={styles.paddedScrollContent}>
         <Text style={styles.pageTitle}>Account</Text>
 
         {/* Profile header */}
@@ -710,9 +716,19 @@ function AccountScreen(): React.JSX.Element {
         </View>
 
         {/* Settings rows */}
+        <View style={styles.settingsRow}>
+          <Text style={styles.settingsIcon}>🔐</Text>
+          <Text style={styles.settingsLabel}>Face ID / Touch ID</Text>
+          <Switch 
+            value={isBiometricEnabled}
+            onValueChange={handleToggleBiometrics}
+            trackColor={{false: colors.border.secondary, true: colors.brand.primary}}
+            thumbColor={'#FFFFFF'}
+          />
+        </View>
+
         {[
           {icon: '👤', label: 'Edit Profile'},
-          {icon: '🔐', label: 'Security & Biometrics'},
           {icon: '🌐', label: 'Network'},
           {icon: '🔔', label: 'Notifications'},
           {icon: '🎨', label: 'Appearance'},
@@ -742,43 +758,15 @@ function AccountScreen(): React.JSX.Element {
   );
 }
 
-// ── Tab Icon ─────────────────────────────────────────────────
-
-function TabIcon({label, focused}: {label: string; focused: boolean}) {
-  const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
-    Wallet: focused ? 'wallet' : 'wallet-outline',
-    Rewards: focused ? 'trophy' : 'trophy-outline',
-    MiniApps: focused ? 'grid' : 'grid-outline',
-    Account: focused ? 'person' : 'person-outline',
-  };
-
-  return (
-    <View style={styles.tabIconContainer}>
-      <Ionicons
-        name={iconMap[label] ?? 'ellipse-outline'}
-        size={22}
-        color={focused ? colors.brand.primary : colors.text.tertiary}
-      />
-      {focused && <View style={styles.tabDot} />}
-    </View>
-  );
-}
-
 // ── Navigator ────────────────────────────────────────────────
 
 export function MainNavigator(): React.JSX.Element {
   return (
     <Tab.Navigator
-      screenOptions={({route}) => ({
+      tabBar={(props) => <FloatingNavBar {...props} />}
+      screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.brand.primary,
-        tabBarInactiveTintColor: colors.text.tertiary,
-        tabBarLabelStyle: styles.tabLabel,
-        tabBarIcon: ({focused}) => (
-          <TabIcon label={route.name} focused={focused} />
-        ),
-      })}>
+      }}>
       <Tab.Screen name="Wallet" component={WalletStackNavigator} />
       <Tab.Screen name="Rewards" component={RewardsScreen} />
       <Tab.Screen name="MiniApps" component={MiniAppsScreen} />
@@ -797,9 +785,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: spacing.xl,
     paddingTop: spacing['5xl'],
     paddingBottom: 100,
+  },
+  paddedScrollContent: {
+    paddingTop: spacing['5xl'],
+    paddingBottom: 100,
+    paddingHorizontal: spacing.xl,
   },
 
   // Page title
@@ -814,83 +806,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing['2xl'],
   },
 
-  // Header
+  // Header (used by SendScreen / ConfirmSendScreen)
   header: {
-    marginBottom: spacing['2xl'],
-  },
-  greeting: {
-    ...typography.bodyMedium,
-    color: colors.text.secondary,
-    marginBottom: spacing['2xs'],
-  },
-  username: {
-    ...typography.headingLarge,
-    color: colors.text.primary,
-  },
-
-  // Balance Card
-  balanceCard: {
-    borderRadius: borderRadius.xl,
-    padding: spacing['2xl'],
-    marginBottom: spacing['2xl'],
-    shadowColor: colors.brand.primary,
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  balanceLabel: {
-    ...typography.labelMedium,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: spacing.xs,
-  },
-  balanceAmount: {
-    ...typography.displayLarge,
-    color: '#FFFFFF',
-    marginBottom: spacing.sm,
-  },
-  balanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-  },
-  balanceAddressLabel: {
-    ...typography.labelMedium,
-    color: 'rgba(255,255,255,0.7)',
-    fontFamily: 'monospace',
-  },
-  balancePeriod: {
-    ...typography.labelSmall,
-    color: 'rgba(255,255,255,0.5)',
-  },
-
-  // Quick Actions
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing['3xl'],
-  },
-  actionItem: {
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  actionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.background.tertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-  },
-  actionIconText: {
-    fontSize: 20,
-    color: colors.text.primary,
-  },
-  actionLabel: {
-    ...typography.labelSmall,
-    color: colors.text.secondary,
+    marginBottom: spacing['2xl'],
   },
 
   // Section

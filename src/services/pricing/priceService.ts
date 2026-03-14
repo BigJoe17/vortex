@@ -38,32 +38,33 @@ export async function fetchTokenPrices(
 
   try {
 
-    const contractQuery = neededContracts.join(',')
+    const platformId = network === 'polygon' ? 'polygon-pos' : 'ethereum';
+    const contractQuery = neededContracts.join(',').toLowerCase();
 
     const url =
-      `https://api.coingecko.com/api/v3/simple/token_price/${network}` +
-      `?contract_addresses=${contractQuery}&vs_currencies=usd`
+      `https://api.coingecko.com/api/v3/simple/token_price/${platformId}` +
+      `?contract_addresses=${contractQuery}&vs_currencies=usd`;
 
-    const response = await fetch(url)
+    const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`CoinGecko error ${response.status}`)
+      throw new Error(`CoinGecko error ${response.status}`);
     }
 
-    const data = (await response.json()) as Record<string, { usd?: number }>
+    const data = (await response.json()) as Record<string, { usd?: number }>;
 
     for (const contract of neededContracts) {
+      // CoinGecko returns keys in lowercase
+      const price = data[contract.toLowerCase()]?.usd ?? 0;
 
-      const price = data[contract]?.usd ?? 0
+      results[contract] = price;
 
-      results[contract] = price
-
-      const key = `${network}:${contract}`
+      const key = `${network}:${contract}`.toLowerCase();
 
       priceCache[key] = {
         price,
         timestamp: now
-      }
+      };
     }
 
   } catch (err) {

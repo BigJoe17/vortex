@@ -95,33 +95,41 @@ export async function sendNativeTransaction(
     throw new Error('Invalid recipient address')
   }
 
+ 
+
   // Retrieve wallet
+  const provider = getProvider(network)
+
   const wallet = await secureStorage.getWallet()
 
   if (!wallet) {
     throw new Error('No wallet found. Please import a wallet first.')
   }
 
-  const provider = getProvider(network)
 
   const signer = new ethers.Wallet(wallet.privateKey, provider)
+  const fromAddress = signer.address
+
 
   const amountWei = ethers.parseEther(amountEther)
 
   // Check balance
-  const balance = await provider.getBalance(signer.address)
+  const balance = await provider.getBalance(fromAddress)
+  const feeData = await provider.getFeeData();
+  const gasLimit = await provider.estimateGas({ to, value: amountWei });
+  const gasCost = gasLimit * (feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n);
 
-  if (balance < amountWei) {
-    throw new Error('Insufficient balance')
+  if (balance < amountWei + gasCost) {
+    throw new Error('Insufficient balance including gas fees')
   }
 
-  const feeData = await provider.getFeeData()
-
+  
   const txRequest = {
     to,
     value: amountWei,
     maxFeePerGas: feeData.maxFeePerGas ?? undefined,
     maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? undefined,
+    gasLimit,
   }
 
   // Timeout protection

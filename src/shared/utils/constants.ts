@@ -51,5 +51,5 @@ export const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000'
 export const REFRESH_INTERVALS = {
   balance: 30_000,      // 30 seconds
   transactions: 60_000, // 1 minute
-  prices: 120_000,      // 2 minutes
+  prices: 30_000,      // 30 seconds
 } as const;

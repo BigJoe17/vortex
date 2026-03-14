@@ -23,6 +23,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   isBiometricEnabled: boolean;
+  isUnlocked: boolean; // Governs if the user has passed the biometric gate
 
   // ── Actions ──────────────────────────────
   setUser: (user: User) => void;
@@ -30,6 +31,7 @@ interface AuthState {
   setAuthenticated: (status: boolean) => void;
   setLoading: (loading: boolean) => void;
   setBiometricEnabled: (enabled: boolean) => void;
+  setUnlocked: (status: boolean) => void;
   login: (user: User, token: string) => void;
   logout: () => void;
   reset: () => void;
@@ -41,6 +43,7 @@ const initialState = {
   isAuthenticated: false,
   isLoading: false,
   isBiometricEnabled: false,
+  isUnlocked: false,
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -51,6 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuthenticated: (isAuthenticated) => set({isAuthenticated}),
   setLoading: (isLoading) => set({isLoading}),
   setBiometricEnabled: (isBiometricEnabled) => set({isBiometricEnabled}),
+  setUnlocked: (isUnlocked) => set({isUnlocked}),
 
   login: (user, accessToken) =>
     set({

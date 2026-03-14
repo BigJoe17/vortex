@@ -1,6 +1,6 @@
 import React from 'react';
 import {View, Text, StyleSheet, Image} from 'react-native';
-import {colors} from '@theme';
+import {colors, useTheme, typography, spacing} from '@theme';
 import {formatTokenBalance} from '@shared/utils/formatting';
 
 interface TokenRowProps {
@@ -20,13 +20,16 @@ export function TokenRow({
   balanceUsd,
   logo,
   primaryColor = '#6C5CE7',
-}: TokenRowProps): React.JSX.Element {
-  
+  onPress,
+}: TokenRowProps & {onPress?: () => void}): React.JSX.Element {
+  const {colors, mode} = useTheme();
   const displayUsd = balanceUsd ? `$${balanceUsd}` : '$0.00';
   const displayBalance = formatTokenBalance(balanceFormatted);
 
+  const ContainerElement = onPress ? React.Fragment : View;
+  
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {borderBottomColor: mode === 'dark' ? '#2c2c2e' : '#f2f2f7'}]}>
       <View style={styles.leftSection}>
         {logo ? (
           <Image source={{uri: logo}} style={styles.icon} />
@@ -38,14 +41,14 @@ export function TokenRow({
           </View>
         )}
         <View style={styles.tokenInfo}>
-          <Text style={styles.symbol}>{symbol}</Text>
-          <Text style={styles.name}>{name}</Text>
+          <Text style={[styles.symbol, {color: colors.text.primary}]}>{symbol}</Text>
+          <Text style={[styles.name, {color: colors.text.secondary}]}>{name}</Text>
         </View>
       </View>
 
       <View style={styles.rightSection}>
-        <Text style={styles.usdValue}>{displayUsd}</Text>
-        <Text style={styles.balance}>
+        <Text style={[styles.usdValue, {color: colors.text.primary}]}>{displayUsd}</Text>
+        <Text style={[styles.balance, {color: colors.text.secondary}]}>
           {displayBalance} {symbol}
         </Text>
       </View>
@@ -58,7 +61,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
+    paddingHorizontal: spacing.xl,
+    borderBottomWidth: 1,
   },
   leftSection: {
     flexDirection: 'row',
@@ -69,7 +74,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    marginRight: 12, // Updated spacing to match common patterns
+    marginRight: 14, 
   },
   fallbackIcon: {
     alignItems: 'center',
@@ -84,28 +89,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   symbol: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: 4,
+    ...typography.headingMedium,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   name: {
-    fontSize: 13,
-    color: colors.text.secondary,
+    ...typography.labelMedium,
+    fontWeight: '500',
   },
   rightSection: {
     alignItems: 'flex-end',
     justifyContent: 'center',
   },
   usdValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
-    marginBottom: 4,
-    textAlign: 'right', // Align right as explicitly requested
+    ...typography.headingMedium,
+    fontWeight: '700',
+    marginBottom: 2,
+    textAlign: 'right', 
   },
   balance: {
-    fontSize: 13,
-    color: '#8E8E93',
+    ...typography.labelMedium,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
 });

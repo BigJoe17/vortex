@@ -1,8 +1,7 @@
 /**
  * Vortex 2.0 — Typography System
  *
- * Type scale based on a 1.25 ratio for visual harmony.
- * Uses system fonts for maximum performance; swap for custom fonts later.
+ * Adjusted typography scales for a modern, clean Web3 presence.
  */
 
 import {Platform, TextStyle} from 'react-native';
@@ -40,24 +39,24 @@ export const typography = {
   // ── Heading ────────────────────────────────────
   headingLarge: {
     fontFamily,
-    fontSize: 24,
-    lineHeight: 32,
+    fontSize: 18, // Reduced from 24
+    lineHeight: 28,
     fontWeight: '700',
     letterSpacing: -0.2,
   } as TextStyle,
 
   headingMedium: {
     fontFamily,
-    fontSize: 20,
-    lineHeight: 28,
+    fontSize: 16, // Reduced from 20
+    lineHeight: 24,
     fontWeight: '600',
     letterSpacing: -0.1,
   } as TextStyle,
 
   headingSmall: {
     fontFamily,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14, // Reduced from 16
+    lineHeight: 20,
     fontWeight: '600',
   } as TextStyle,
 
