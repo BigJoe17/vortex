@@ -17,7 +17,9 @@ const STORAGE_KEYS = {
   BIOMETRIC_KEY: 'vortex_biometric_key',
   WALLET_METADATA: 'vortex_wallet_metadata',
   PRIVATE_KEY: 'vortex_private_key',
+  ENCRYPTED_PRIVATE_KEY: 'vortex_encrypted_private_key',
   WALLET_ADDRESS: 'vortex_wallet_address',
+  PIN_HASH: 'vortex_pin_hash',
 } as const;
 
 type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
@@ -111,6 +113,9 @@ class SecureStorageService {
   /**
    * Store wallet credentials securely.
    * SECURITY: privateKey is encrypted at rest by the OS keystore.
+   *
+   * @deprecated Use saveEncryptedWallet() for PIN-encrypted storage.
+   * Kept for backward compatibility during migration.
    */
   async saveWallet(privateKey: string, address: string): Promise<void> {
     await this.setItem(STORAGE_KEYS.PRIVATE_KEY, privateKey);
@@ -118,10 +123,43 @@ class SecureStorageService {
   }
 
   /**
+   * Store a PIN-encrypted private key + address.
+   * The privateKey param must ALREADY be encrypted via encryptionService.
+   *
+   * SECURITY: Even if secure storage is compromised,
+   * the attacker still needs the user's PIN to decrypt.
+   */
+  async saveEncryptedWallet(encryptedPrivateKey: string, address: string): Promise<void> {
+    await this.setItem(STORAGE_KEYS.ENCRYPTED_PRIVATE_KEY, encryptedPrivateKey);
+    await this.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
+    // Remove any legacy unencrypted key if present
+    await this.removeItem(STORAGE_KEYS.PRIVATE_KEY);
+  }
+
+  /**
+   * Retrieve the encrypted wallet data.
+   * Returns the AES-encrypted private key (NOT plaintext) + address.
+   */
+  async getEncryptedWallet(): Promise<{encryptedPrivateKey: string; address: string} | null> {
+    const encryptedPrivateKey = await this.getItem(STORAGE_KEYS.ENCRYPTED_PRIVATE_KEY);
+    const address = await this.getItem(STORAGE_KEYS.WALLET_ADDRESS);
+    if (!encryptedPrivateKey || !address) return null;
+    return {encryptedPrivateKey, address};
+  }
+
+  /**
    * Retrieve stored wallet credentials.
-   * Returns null if no wallet is stored.
+   * Checks encrypted key first, falls back to legacy unencrypted key.
    */
   async getWallet(): Promise<{privateKey: string; address: string} | null> {
+    // Try encrypted key first
+    const encrypted = await this.getEncryptedWallet();
+    if (encrypted) {
+      // Return encrypted key — caller must decrypt with PIN
+      return {privateKey: encrypted.encryptedPrivateKey, address: encrypted.address};
+    }
+
+    // Legacy fallback: unencrypted key (pre-PIN migration)
     const privateKey = await this.getItem(STORAGE_KEYS.PRIVATE_KEY);
     const address = await this.getItem(STORAGE_KEYS.WALLET_ADDRESS);
     if (!privateKey || !address) return null;
@@ -129,7 +167,7 @@ class SecureStorageService {
   }
 
   /**
-   * Check if a wallet is stored.
+   * Check if a wallet is stored (encrypted or legacy).
    */
   async hasWallet(): Promise<boolean> {
     const address = await this.getItem(STORAGE_KEYS.WALLET_ADDRESS);
@@ -137,12 +175,47 @@ class SecureStorageService {
   }
 
   /**
-   * Delete all wallet data.
+   * Check if the stored wallet uses PIN encryption.
+   */
+  async isWalletEncrypted(): Promise<boolean> {
+    const encrypted = await this.getItem(STORAGE_KEYS.ENCRYPTED_PRIVATE_KEY);
+    return encrypted !== null;
+  }
+
+  /**
+   * Delete all wallet data (encrypted + legacy).
    */
   async deleteWallet(): Promise<void> {
     await this.removeItem(STORAGE_KEYS.PRIVATE_KEY);
+    await this.removeItem(STORAGE_KEYS.ENCRYPTED_PRIVATE_KEY);
     await this.removeItem(STORAGE_KEYS.WALLET_ADDRESS);
     await this.removeItem(STORAGE_KEYS.WALLET_METADATA);
+    await this.removeItem(STORAGE_KEYS.PIN_HASH);
+  }
+
+  // ── PIN helpers ────────────────────────────────
+
+  /**
+   * Store the SHA-256 hash of the user's PIN.
+   * SECURITY: The raw PIN is NEVER stored.
+   */
+  async savePinHash(pinHash: string): Promise<void> {
+    await this.setItem(STORAGE_KEYS.PIN_HASH, pinHash);
+  }
+
+  /**
+   * Retrieve the stored PIN hash for verification.
+   */
+  async getPinHash(): Promise<string | null> {
+    return this.getItem(STORAGE_KEYS.PIN_HASH);
+  }
+
+  /**
+   * Check if a PIN has been set.
+   */
+  async hasPinSet(): Promise<boolean> {
+    const hash = await this.getItem(STORAGE_KEYS.PIN_HASH);
+    return hash !== null;
   }
 }
 

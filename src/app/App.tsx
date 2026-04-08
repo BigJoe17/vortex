@@ -10,6 +10,7 @@ import {StatusBar} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
 import {AppProviders} from './providers/AppProviders';
 import {RootNavigator} from './navigation/RootNavigator';
+import {ActivityWrapper} from '../components/security/ActivityWrapper';
 import {colors} from '@theme';
 
 function App(): React.JSX.Element {
@@ -20,38 +21,40 @@ function App(): React.JSX.Element {
         backgroundColor={colors.background.primary}
         translucent={false}
       />
-      <NavigationContainer
-        theme={{
-          dark: true,
-          colors: {
-            primary: colors.brand.primary,
-            background: colors.background.primary,
-            card: colors.background.secondary,
-            text: colors.text.primary,
-            border: colors.border.primary,
-            notification: colors.brand.secondary,
-          },
-          fonts: {
-            regular: {
-              fontFamily: 'System',
-              fontWeight: '400',
+      <ActivityWrapper>
+        <NavigationContainer
+          theme={{
+            dark: true,
+            colors: {
+              primary: colors.brand.primary,
+              background: colors.background.primary,
+              card: colors.background.secondary,
+              text: colors.text.primary,
+              border: colors.border.primary,
+              notification: colors.brand.secondary,
             },
-            medium: {
-              fontFamily: 'System',
-              fontWeight: '500',
+            fonts: {
+              regular: {
+                fontFamily: 'System',
+                fontWeight: '400',
+              },
+              medium: {
+                fontFamily: 'System',
+                fontWeight: '500',
+              },
+              bold: {
+                fontFamily: 'System',
+                fontWeight: '700',
+              },
+              heavy: {
+                fontFamily: 'System',
+                fontWeight: '900',
+              },
             },
-            bold: {
-              fontFamily: 'System',
-              fontWeight: '700',
-            },
-            heavy: {
-              fontFamily: 'System',
-              fontWeight: '900',
-            },
-          },
-        }}>
-        <RootNavigator />
-      </NavigationContainer>
+          }}>
+          <RootNavigator />
+        </NavigationContainer>
+      </ActivityWrapper>
     </AppProviders>
   );
 }

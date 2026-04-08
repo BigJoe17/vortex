@@ -19,7 +19,7 @@ import {
   RefreshControl,
   TextInput,
   FlatList,
-  Switch, // Added Switch
+  Switch,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
 import {Ionicons} from '@expo/vector-icons';
@@ -43,7 +43,11 @@ import {TokenSection} from '../../components/wallet/TokenSection';
 import {NFTSection} from '../../components/wallet/NFTSection';
 import {AssetSwitcher} from '../../components/wallet/AssetSwitcher';
 import {FloatingNavBar} from '../../components/navigation/FloatingNavBar';
-import {authenticateUser} from '../../services/security/biometricService'; // Added Biometrics
+import {TransactionCard} from '../../components/wallet/TransactionCard';
+import {ActionButton} from '../../components/ui/ActionButton';
+import {authenticateUser} from '../../services/security/biometricService';
+import {decryptPrivateKey, verifyPin} from '../../services/security/encryptionService';
+import {secureStorage} from '../../services/storage/secureStorage';
 import type {MainTabParamList, WalletStackParamList} from './types';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 
@@ -86,7 +90,6 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
       const rawErc20s = await fetchTokens(address, network);
 
       // 3. USD Pricing
-      // CoinGecko token_price endpoint requires contract addresses
       const addressesToFetch = rawErc20s.map((t) => t.address);
       const prices = await fetchTokenPrices(addressesToFetch, network as 'ethereum' | 'polygon');
 
@@ -96,8 +99,6 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
         balanceUsd: getTokenUsdValue(t.balanceFormatted, prices[t.address.toLowerCase()] || prices[t.address] || 0),
       }));
       setErc20Tokens(tokensWithUsd);
-
-      // (Optional phase logic: update total balance to include everything)
     } catch (error) {
       console.error('[WalletScreen] Data fetch failed:', error);
     } finally {
@@ -113,9 +114,6 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
   // Track overall USD balance
   const totalUsdBalance = React.useMemo(() => {
     let total = 0;
-    // We assume native balance isn't tracked in USD right now based on the old code "Future",
-    // but the prompt tasks to improve the portfolio UI to show all total values.
-    // If native has usd we'd add it here. For now we only have ERC20 USD values.
     for (const t of erc20Tokens) {
       if (t.balanceUsd) {
         total += parseFloat(t.balanceUsd);
@@ -128,11 +126,6 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-
-  // Truncate address for display
-  const displayAddress = address
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
-    : '...';
 
   const {colors} = useTheme();
 
@@ -177,13 +170,13 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
                   balanceFormatted={item.balanceFormatted}
                   balanceUsd={'balanceUsd' in item ? (item as any).balanceUsd : null}
                   logo={'logo' in item ? (item as any).logo : undefined}
-                  primaryColor={isNative ? colors.brand.primary : '#6C5CE7'}
+                  primaryColor={isNative ? colors.brand.primary : '#4ECDC4'}
                 />
               );
             })}
             {tokens.length === 0 && erc20Tokens.length === 0 && (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
+                <Text style={[styles.emptyStateText, {color: colors.text.tertiary}]}>
                   {isLoadingBalances || isErc20Loading ? 'Loading balances...' : 'No tokens found'}
                 </Text>
               </View>
@@ -197,49 +190,38 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
     </View>
   );
 }
+
 // ── Recent Activity Component ────────────────────────────────
 
 function RecentActivity(): React.JSX.Element {
   const transactions = useTransactionStore((s) => s.transactions);
   const pendingTxs = useTransactionStore((s) => s.pendingTransactions);
   const allTxs = [...pendingTxs, ...transactions].slice(0, 10);
+  const {colors} = useTheme();
 
   return (
-    <View style={{paddingHorizontal: spacing.xl}}>
+    <View style={{paddingHorizontal: spacing['2xl']}}>
       <View style={[styles.sectionHeader, {marginTop: spacing['2xl']}]}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        <Text style={[styles.sectionTitle, {color: colors.text.primary}]}>Recent Activity</Text>
       </View>
       {allTxs.length > 0 ? (
         allTxs.map((tx) => (
-          <View key={tx.hash} style={styles.tokenRow}>
-            <View style={[
-              styles.tokenIcon,
-              {backgroundColor: tx.status === 'pending' ? '#FFA50020' : tx.status === 'confirmed' ? colors.brand.primary + '20' : '#FF000020'},
-            ]}>
-              <Ionicons
-                name={tx.type === 'send' ? 'arrow-up' : 'arrow-down'}
-                size={18}
-                color={tx.status === 'pending' ? '#FFA500' : tx.status === 'confirmed' ? colors.brand.primary : '#FF0000'}
-              />
-            </View>
-            <View style={styles.tokenInfo}>
-              <Text style={styles.tokenSymbol}>
-                {tx.type === 'send' ? 'Sent' : 'Received'} {tx.tokenSymbol}
-              </Text>
-              <Text style={styles.tokenName}>
-                {tx.status === 'pending' ? '⏳ Pending...' : tx.to.slice(0, 8) + '...'}
-              </Text>
-            </View>
-            <View style={styles.tokenBalance}>
-              <Text style={styles.tokenAmount}>
-                {tx.type === 'send' ? '-' : '+'}{tx.valueFormatted}
-              </Text>
-            </View>
-          </View>
+          <TransactionCard
+            key={tx.hash}
+            hash={tx.hash}
+            type={tx.type as 'send' | 'receive'}
+            status={tx.status as 'pending' | 'confirmed' | 'failed'}
+            tokenSymbol={tx.tokenSymbol}
+            valueFormatted={tx.valueFormatted}
+            to={tx.to}
+            timestamp={tx.timestamp}
+          />
         ))
       ) : (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>No transactions yet</Text>
+          <Text style={[styles.emptyStateText, {color: colors.text.tertiary}]}>
+            No transactions yet
+          </Text>
         </View>
       )}
     </View>
@@ -257,9 +239,13 @@ function SendScreen({navigation}: {navigation: WalletNavProp}): React.JSX.Elemen
   const address = useWalletStore((s) => s.address);
   const tokens = useWalletStore((s) => s.tokens);
   const network = useWalletStore((s) => s.network);
+  const {colors} = useTheme();
 
   const nativeBalance = tokens.length > 0 ? tokens[0]! : null;
   const symbol = nativeBalance?.symbol ?? 'ETH';
+
+  // Address validation state
+  const addressValid = toAddress.length > 0 ? isValidAddress(toAddress) : null;
 
   const handleEstimate = useCallback(async () => {
     setError('');
@@ -293,9 +279,7 @@ function SendScreen({navigation}: {navigation: WalletNavProp}): React.JSX.Elemen
   }, [toAddress, amount, network, nativeBalance]);
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screen}>
+    <View style={[styles.screen, {backgroundColor: colors.background.primary}]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.paddedScrollContent, {paddingBottom: 120}]}
@@ -303,80 +287,92 @@ function SendScreen({navigation}: {navigation: WalletNavProp}): React.JSX.Elemen
         keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={sendStyles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[styles.pageTitle, {marginLeft: spacing.md}]}>Send {symbol}</Text>
+          <Text style={[styles.pageTitle, {color: colors.text.primary}]}>Send {symbol}</Text>
+          <View style={{width: 40}} />
         </View>
 
-        {/* Balance info */}
-        <View style={sendStyles.balanceInfo}>
-          <Text style={sendStyles.balanceLabel}>Available Balance</Text>
-          <Text style={sendStyles.balanceValue}>
+        {/* Step indicator */}
+        <View style={sendStyles.stepRow}>
+          <View style={[sendStyles.stepDot, {backgroundColor: colors.brand.primary}]} />
+          <View style={[sendStyles.stepLine, {backgroundColor: colors.border.primary}]} />
+          <View style={[sendStyles.stepDot, {backgroundColor: colors.border.primary}]} />
+        </View>
+
+        {/* Balance info card */}
+        <View style={[sendStyles.balanceCard, {backgroundColor: colors.background.secondary, borderColor: colors.border.primary}]}>
+          <Text style={[sendStyles.balanceLabel, {color: colors.text.tertiary}]}>Available Balance</Text>
+          <Text style={[sendStyles.balanceValue, {color: colors.text.primary}]}>
             {nativeBalance ? `${nativeBalance.balanceFormatted} ${symbol}` : '...'}
           </Text>
         </View>
 
         {/* Recipient */}
-        <Text style={sendStyles.inputLabel}>Recipient Address</Text>
-        <TextInput
-          style={sendStyles.input}
-          placeholder="0x..."
-          placeholderTextColor={colors.text.tertiary}
-          value={toAddress}
-          onChangeText={(t) => { setToAddress(t); setError(''); }}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        <Text style={[sendStyles.inputLabel, {color: colors.text.secondary}]}>Recipient Address</Text>
+        <View style={[sendStyles.inputWrapper, {borderColor: addressValid === false ? colors.status.error : addressValid === true ? colors.status.success : colors.border.secondary, backgroundColor: colors.background.secondary}]}>
+          <TextInput
+            style={[sendStyles.input, {color: colors.text.primary}]}
+            placeholder="0x..."
+            placeholderTextColor={colors.text.tertiary}
+            value={toAddress}
+            onChangeText={(t) => { setToAddress(t); setError(''); }}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {addressValid !== null && (
+            <View style={[sendStyles.validationBadge, {backgroundColor: addressValid ? colors.status.successBg : colors.status.errorBg}]}>
+              <Ionicons
+                name={addressValid ? 'checkmark-circle' : 'close-circle'}
+                size={16}
+                color={addressValid ? colors.status.success : colors.status.error}
+              />
+            </View>
+          )}
+        </View>
 
         {/* Amount */}
-        <Text style={sendStyles.inputLabel}>Amount ({symbol})</Text>
-        <TextInput
-          style={sendStyles.input}
-          placeholder="0.00"
-          placeholderTextColor={colors.text.tertiary}
-          value={amount}
-          onChangeText={(t) => { setAmount(t); setError(''); }}
-          keyboardType="decimal-pad"
-        />
-
-        {/* Max button */}
-        {nativeBalance && (
-          <TouchableOpacity
-            style={sendStyles.maxButton}
-            onPress={() => setAmount(nativeBalance.balanceFormatted)}>
-            <Text style={sendStyles.maxButtonText}>MAX</Text>
-          </TouchableOpacity>
-        )}
+        <Text style={[sendStyles.inputLabel, {color: colors.text.secondary}]}>Amount ({symbol})</Text>
+        <View style={[sendStyles.inputWrapper, {borderColor: colors.border.secondary, backgroundColor: colors.background.secondary}]}>
+          <TextInput
+            style={[sendStyles.input, {color: colors.text.primary}]}
+            placeholder="0.00"
+            placeholderTextColor={colors.text.tertiary}
+            value={amount}
+            onChangeText={(t) => { setAmount(t); setError(''); }}
+            keyboardType="decimal-pad"
+          />
+          {nativeBalance && (
+            <TouchableOpacity
+              style={[sendStyles.maxPill, {borderColor: colors.brand.primary}]}
+              onPress={() => setAmount(nativeBalance.balanceFormatted)}>
+              <Text style={[sendStyles.maxPillText, {color: colors.brand.primary}]}>MAX</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Error */}
-        {error ? <Text style={sendStyles.errorText}>{error}</Text> : null}
+        {error ? (
+          <View style={[sendStyles.errorRow, {backgroundColor: colors.status.errorBg}]}>
+            <Ionicons name="warning" size={14} color={colors.status.error} />
+            <Text style={[sendStyles.errorText, {color: colors.status.error}]}>{error}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
       {/* Continue button */}
-      <View style={sendStyles.bottomAction}>
-        <TouchableOpacity
-          activeOpacity={0.8}
+      <View style={[sendStyles.bottomAction, {backgroundColor: colors.background.primary}]}>
+        <ActionButton
+          label="Continue"
           onPress={handleEstimate}
-          disabled={!toAddress || !amount || isEstimating}>
-          <LinearGradient
-            colors={
-              toAddress && amount && !isEstimating
-                ? [colors.brand.primary, colors.brand.primaryDark]
-                : ['#333', '#222']
-            }
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 0}}
-            style={sendStyles.primaryButton}>
-            {isEstimating ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <Text style={sendStyles.primaryButtonText}>Continue</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+          disabled={!toAddress || !amount || isEstimating}
+          loading={isEstimating}
+        />
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -387,6 +383,8 @@ function ConfirmSendScreen({route, navigation}: {
   navigation: WalletNavProp;
 }): React.JSX.Element {
   const [isSending, setIsSending] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
   const network = useWalletStore((s) => s.network);
   const tokens = useWalletStore((s) => s.tokens);
   const addTransaction = useTransactionStore((s) => s.addTransaction);
@@ -394,34 +392,67 @@ function ConfirmSendScreen({route, navigation}: {
   const setTokens = useWalletStore((s) => s.setTokens);
   const address = useWalletStore((s) => s.address);
   const isBiometricEnabled = useAuthStore((s) => s.isBiometricEnabled);
+  const {colors} = useTheme();
 
   const {to, amount, gasFee} = route.params;
   const symbol = tokens.length > 0 ? tokens[0]!.symbol : 'ETH';
+  const totalAmount = (parseFloat(amount) + parseFloat(gasFee)).toFixed(8);
 
   const handleConfirm = async () => {
-    setIsSending(true);
-
-   
-    
-    if (isBiometricEnabled) {
-    const auth = await authenticateUser('Confirm Transaction');
-
-    if (!auth.success) {
-      setIsSending(false);
-
-      // Tell the user what happened — don't silently fail
-      if (auth.reason !== 'cancelled') {
-        Alert.alert('Authentication Failed', auth.message);
-      }
+    // Validate PIN input
+    if (!pinInput || pinInput.length < 6) {
+      setPinError('Enter your 6-digit PIN to continue');
       return;
     }
+
+    setIsSending(true);
+    setPinError('');
+
+    // 1. Biometric check (if enabled)
+    if (isBiometricEnabled) {
+      const auth = await authenticateUser('Confirm Transaction');
+      if (!auth.success) {
+        setIsSending(false);
+        if (auth.reason !== 'cancelled') {
+          Alert.alert('Authentication Failed', auth.message);
+        }
+        return;
+      }
     }
 
     try {
-      // 1. Send transaction
-      const result = await sendNativeTransaction(to, amount, network);
+      // 2. Verify PIN against stored hash
+      const storedHash = await secureStorage.getPinHash();
+      if (storedHash && !verifyPin(pinInput, storedHash)) {
+        setPinError('Incorrect PIN');
+        setIsSending(false);
+        return;
+      }
 
-      // 2. Add to pending transactions
+      // 3. Retrieve encrypted wallet
+      const encryptedWallet = await secureStorage.getEncryptedWallet();
+
+      let decryptedKey: string | undefined;
+
+      if (encryptedWallet) {
+        // 4. Decrypt private key using PIN (in function scope only)
+        try {
+          decryptedKey = decryptPrivateKey(encryptedWallet.encryptedPrivateKey, pinInput);
+        } catch {
+          setPinError('Incorrect PIN — decryption failed');
+          setIsSending(false);
+          return;
+        }
+      }
+      // If no encrypted wallet, legacy flow will be used (no PIN needed)
+
+      // 5. Send transaction with decrypted key
+      const result = await sendNativeTransaction(to, amount, network, decryptedKey);
+
+      // 6. Immediately discard decrypted key
+      decryptedKey = undefined;
+
+      // 7. Add to pending transactions
       addTransaction({
         hash: result.hash,
         type: 'send',
@@ -435,10 +466,10 @@ function ConfirmSendScreen({route, navigation}: {
         timestamp: Date.now(),
       });
 
-      // 3. Navigate back to wallet
+      // 8. Navigate back to wallet
       navigation.popToTop();
 
-      // 4. Wait for confirmation in background
+      // 9. Wait for confirmation in background
       const confirmation = await waitForConfirmation(result.hash, network);
       updateTransaction(result.hash, {
         status: confirmation.status,
@@ -446,7 +477,7 @@ function ConfirmSendScreen({route, navigation}: {
         gasUsed: confirmation.gasUsed,
       });
 
-      // 5. Refresh balances
+      // 10. Refresh balances
       if (address) {
         const balances = await fetchWalletBalances(address, network);
         setTokens(balances);
@@ -456,87 +487,120 @@ function ConfirmSendScreen({route, navigation}: {
       Alert.alert('Transaction Failed', msg);
     } finally {
       setIsSending(false);
+      setPinInput(''); // Clear PIN from memory
     }
   };
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screen}>
+    <View style={[styles.screen, {backgroundColor: colors.background.primary}]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.paddedScrollContent, {paddingBottom: 120}]}
         showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={sendStyles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[styles.pageTitle, {marginLeft: spacing.md}]}>Confirm Transaction</Text>
+          <Text style={[styles.pageTitle, {color: colors.text.primary}]}>Confirm</Text>
+          <View style={{width: 40}} />
         </View>
 
-        {/* Summary card */}
-        <LinearGradient
-          colors={[colors.brand.primary, '#4A3CB5', '#2D2080']}
-          start={{x: 0, y: 0}}
-          end={{x: 1, y: 1}}
-          style={confirmStyles.summaryCard}>
-          <Text style={confirmStyles.summaryLabel}>Sending</Text>
-          <Text style={confirmStyles.summaryAmount}>{amount} {symbol}</Text>
-        </LinearGradient>
+        {/* Step indicator */}
+        <View style={sendStyles.stepRow}>
+          <View style={[sendStyles.stepDot, {backgroundColor: colors.brand.primary}]} />
+          <View style={[sendStyles.stepLine, {backgroundColor: colors.brand.primary}]} />
+          <View style={[sendStyles.stepDot, {backgroundColor: colors.brand.primary}]} />
+        </View>
+
+        {/* Amount summary */}
+        <View style={[confirmStyles.summaryCard, {backgroundColor: colors.background.secondary, borderColor: colors.border.primary}]}>
+          <Text style={[confirmStyles.summaryLabel, {color: colors.text.tertiary}]}>Sending</Text>
+          <Text style={[confirmStyles.summaryAmount, {color: colors.text.primary}]}>
+            {amount} {symbol}
+          </Text>
+        </View>
 
         {/* Details */}
-        <View style={confirmStyles.detailsCard}>
+        <View style={[confirmStyles.detailsCard, {backgroundColor: colors.background.secondary, borderColor: colors.border.primary}]}>
           <View style={confirmStyles.detailRow}>
-            <Text style={confirmStyles.detailLabel}>To</Text>
-            <Text style={confirmStyles.detailValue} numberOfLines={1}>
+            <Text style={[confirmStyles.detailLabel, {color: colors.text.tertiary}]}>To</Text>
+            <Text style={[confirmStyles.detailValue, {color: colors.text.primary}]} numberOfLines={1}>
               {to.slice(0, 10)}...{to.slice(-8)}
             </Text>
           </View>
-          <View style={confirmStyles.divider} />
+          <View style={[confirmStyles.divider, {backgroundColor: colors.border.primary}]} />
           <View style={confirmStyles.detailRow}>
-            <Text style={confirmStyles.detailLabel}>Network</Text>
-            <Text style={confirmStyles.detailValue}>{network}</Text>
-          </View>
-          <View style={confirmStyles.divider} />
-          <View style={confirmStyles.detailRow}>
-            <Text style={confirmStyles.detailLabel}>Network Fee</Text>
-            <Text style={confirmStyles.detailValue}>{gasFee} {symbol}</Text>
-          </View>
-          <View style={confirmStyles.divider} />
-          <View style={confirmStyles.detailRow}>
-            <Text style={confirmStyles.detailLabel}>Total</Text>
-            <Text style={[confirmStyles.detailValue, {color: colors.brand.primary}]}>
-              {(parseFloat(amount) + parseFloat(gasFee)).toFixed(8)} {symbol}
+            <Text style={[confirmStyles.detailLabel, {color: colors.text.tertiary}]}>Network</Text>
+            <Text style={[confirmStyles.detailValue, {color: colors.text.primary}]}>
+              {network.charAt(0).toUpperCase() + network.slice(1)}
             </Text>
           </View>
+          <View style={[confirmStyles.divider, {backgroundColor: colors.border.primary}]} />
+          <View style={confirmStyles.detailRow}>
+            <Text style={[confirmStyles.detailLabel, {color: colors.text.tertiary}]}>Network Fee</Text>
+            <Text style={[confirmStyles.detailValue, {color: colors.text.secondary}]}>{gasFee} {symbol}</Text>
+          </View>
+          <View style={[confirmStyles.divider, {backgroundColor: colors.border.primary}]} />
+          <View style={confirmStyles.detailRow}>
+            <Text style={[confirmStyles.detailLabel, {color: colors.text.primary, fontWeight: '600'}]}>Total</Text>
+            <Text style={[confirmStyles.detailValue, {color: colors.brand.primary, fontWeight: '700'}]}>
+              {totalAmount} {symbol}
+            </Text>
+          </View>
+        </View>
+
+        {/* PIN Input */}
+        <View style={[confirmStyles.detailsCard, {backgroundColor: colors.background.secondary, borderColor: colors.border.primary, marginTop: spacing.xl}]}>
+          <Text style={[confirmStyles.detailLabel, {color: colors.text.secondary, marginBottom: spacing.sm}]}>
+            🔐 Enter Wallet PIN
+          </Text>
+          <TextInput
+            style={[{
+              backgroundColor: colors.background.tertiary,
+              borderRadius: borderRadius.md,
+              borderWidth: 1.5,
+              borderColor: pinError ? colors.status.error : colors.border.secondary,
+              paddingHorizontal: spacing.lg,
+              height: 52,
+              color: colors.text.primary,
+              fontSize: 18,
+              fontWeight: '600',
+              letterSpacing: 8,
+              textAlign: 'center',
+            }]}
+            placeholder="••••••"
+            placeholderTextColor={colors.text.tertiary}
+            value={pinInput}
+            onChangeText={(t) => {
+              setPinInput(t.replace(/[^0-9]/g, '').slice(0, 8));
+              setPinError('');
+            }}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={8}
+            editable={!isSending}
+          />
+          {pinError ? (
+            <Text style={[{color: colors.status.error, ...typography.bodySmall, marginTop: spacing.sm}]}>
+              {pinError}
+            </Text>
+          ) : null}
         </View>
       </ScrollView>
 
       {/* Confirm button */}
-      <View style={sendStyles.bottomAction}>
-        <TouchableOpacity
-          activeOpacity={0.8}
+      <View style={[sendStyles.bottomAction, {backgroundColor: colors.background.primary}]}>
+        <ActionButton
+          label="Confirm & Send"
           onPress={handleConfirm}
-          disabled={isSending}>
-          <LinearGradient
-            colors={
-              !isSending
-                ? [colors.brand.primary, colors.brand.primaryDark]
-                : ['#333', '#222']
-            }
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 0}}
-            style={sendStyles.primaryButton}>
-            {isSending ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <Text style={sendStyles.primaryButtonText}>Confirm & Send</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+          disabled={isSending}
+          loading={isSending}
+        />
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -555,49 +619,49 @@ function WalletStackNavigator(): React.JSX.Element {
 // ── Rewards Screen ───────────────────────────────────────────
 
 function RewardsScreen(): React.JSX.Element {
+  const {colors} = useTheme();
+
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screen}>
+    <View style={[styles.screen, {backgroundColor: colors.background.primary}]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.paddedScrollContent}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.pageTitle}>Rewards</Text>
+        <Text style={[styles.pageTitle, {color: colors.text.primary}]}>Rewards</Text>
 
         {/* Points card */}
-        <LinearGradient
-          colors={['#1A1A2E', '#16213E']}
-          style={styles.rewardsHeroCard}>
+        <View style={[styles.rewardsHeroCard, {backgroundColor: colors.background.secondary, borderColor: colors.border.primary}]}>
           <Text style={styles.rewardsHeroEmoji}>🏆</Text>
-          <Text style={styles.rewardsHeroPoints}>0</Text>
-          <Text style={styles.rewardsHeroLabel}>Total Points</Text>
-          <View style={styles.rewardsLevelBadge}>
-            <Text style={styles.rewardsLevelText}>Level 1 — Newcomer</Text>
+          <Text style={[styles.rewardsHeroPoints, {color: colors.brand.primary}]}>0</Text>
+          <Text style={[styles.rewardsHeroLabel, {color: colors.text.tertiary}]}>Total Points</Text>
+          <View style={[styles.rewardsLevelBadge, {backgroundColor: colors.brand.primary + '15'}]}>
+            <Text style={[styles.rewardsLevelText, {color: colors.brand.primary}]}>Level 1 — Newcomer</Text>
           </View>
-        </LinearGradient>
+        </View>
 
         {/* How to earn */}
-        <Text style={styles.sectionTitle}>How to Earn</Text>
+        <Text style={[styles.sectionTitle, {color: colors.text.primary}]}>How to Earn</Text>
         {[
           {icon: '💸', title: 'Send Tokens', desc: '+10 pts per tx', pts: '10'},
           {icon: '📥', title: 'Receive Tokens', desc: '+5 pts per tx', pts: '5'},
           {icon: '🔄', title: 'Swap Tokens', desc: '+15 pts per swap', pts: '15'},
           {icon: '📅', title: 'Daily Check-in', desc: '+3 pts daily', pts: '3'},
         ].map((item) => (
-          <View key={item.title} style={styles.earnRow}>
-            <Text style={styles.earnIcon}>{item.icon}</Text>
-            <View style={styles.earnInfo}>
-              <Text style={styles.earnTitle}>{item.title}</Text>
-              <Text style={styles.earnDesc}>{item.desc}</Text>
+          <View key={item.title} style={[styles.earnRow, {borderBottomColor: colors.border.primary}]}>
+            <View style={[styles.earnIconCircle, {backgroundColor: colors.background.tertiary}]}>
+              <Text style={styles.earnIcon}>{item.icon}</Text>
             </View>
-            <View style={styles.earnPts}>
-              <Text style={styles.earnPtsText}>+{item.pts}</Text>
+            <View style={styles.earnInfo}>
+              <Text style={[styles.earnTitle, {color: colors.text.primary}]}>{item.title}</Text>
+              <Text style={[styles.earnDesc, {color: colors.text.tertiary}]}>{item.desc}</Text>
+            </View>
+            <View style={[styles.earnPts, {backgroundColor: colors.brand.primary + '15'}]}>
+              <Text style={[styles.earnPtsText, {color: colors.brand.primary}]}>+{item.pts}</Text>
             </View>
           </View>
         ))}
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -613,16 +677,16 @@ const DAPPS = [
 ];
 
 function MiniAppsScreen(): React.JSX.Element {
+  const {colors} = useTheme();
+
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screen}>
+    <View style={[styles.screen, {backgroundColor: colors.background.primary}]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.paddedScrollContent}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.pageTitle}>MiniApps</Text>
-        <Text style={styles.pageSubtitle}>
+        <Text style={[styles.pageTitle, {color: colors.text.primary}]}>MiniApps</Text>
+        <Text style={[styles.pageSubtitle, {color: colors.text.tertiary}]}>
           Access DeFi protocols directly from your wallet
         </Text>
 
@@ -631,30 +695,30 @@ function MiniAppsScreen(): React.JSX.Element {
           {DAPPS.map((dapp) => (
             <TouchableOpacity
               key={dapp.name}
-              style={styles.dappCard}
+              style={[styles.dappCard, {backgroundColor: colors.background.secondary, borderColor: colors.border.primary}]}
               activeOpacity={0.7}
               onPress={() =>
                 Alert.alert(dapp.name, 'WebView integration coming in Phase 5')
               }>
-              <View style={[styles.dappIcon, {backgroundColor: dapp.color + '20'}]}>
+              <View style={[styles.dappIcon, {backgroundColor: dapp.color + '15'}]}>
                 <Text style={styles.dappEmoji}>{dapp.icon}</Text>
               </View>
-              <Text style={styles.dappName}>{dapp.name}</Text>
-              <Text style={styles.dappDesc}>{dapp.desc}</Text>
+              <Text style={[styles.dappName, {color: colors.text.primary}]}>{dapp.name}</Text>
+              <Text style={[styles.dappDesc, {color: colors.text.tertiary}]}>{dapp.desc}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Coming soon */}
-        <View style={styles.comingSoonCard}>
+        <View style={[styles.comingSoonCard, {backgroundColor: colors.background.secondary, borderColor: colors.border.primary}]}>
           <Text style={styles.comingSoonEmoji}>🚀</Text>
-          <Text style={styles.comingSoonTitle}>More Coming Soon</Text>
-          <Text style={styles.comingSoonText}>
+          <Text style={[styles.comingSoonTitle, {color: colors.text.primary}]}>More Coming Soon</Text>
+          <Text style={[styles.comingSoonText, {color: colors.text.tertiary}]}>
             We're integrating more DeFi protocols and Web3 apps.
           </Text>
         </View>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -677,38 +741,33 @@ function AccountScreen(): React.JSX.Element {
 
   const handleToggleBiometrics = async (value: boolean) => {
     if (value) {
-      // Trying to enable biometrics
-      const authenticated = await authenticateUser('Enable Biometric Unlock');
-      if (authenticated) {
+      const result = await authenticateUser('Enable Biometric Unlock');
+      if (result.success) {
         setBiometricEnabled(true);
       } else {
-        // Leave the switch off if they canceled or failed
         setBiometricEnabled(false);
       }
     } else {
-      // Disabling biometrics doesn't strictly need a prompt, but we disable it
       setBiometricEnabled(false);
     }
   };
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screen}>
+    <View style={[styles.screen, {backgroundColor: colors.background.primary}]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.paddedScrollContent}>
-        <Text style={styles.pageTitle}>Account</Text>
+        <Text style={[styles.pageTitle, {color: colors.text.primary}]}>Account</Text>
 
         {/* Profile header */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileAvatar}>
+        <View style={[styles.profileCard, {borderBottomColor: colors.border.primary}]}>
+          <View style={[styles.profileAvatar, {backgroundColor: colors.background.tertiary, borderColor: colors.brand.primary}]}>
             <Text style={styles.profileAvatarText}>
               {user?.avatarId ?? '👤'}
             </Text>
           </View>
-          <Text style={styles.profileName}>@{user?.username ?? 'user'}</Text>
-          <Text style={styles.profileAddress}>
+          <Text style={[styles.profileName, {color: colors.text.primary}]}>@{user?.username ?? 'user'}</Text>
+          <Text style={[styles.profileAddress, {color: colors.text.tertiary}]}>
             {user?.walletAddress
               ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
               : '0x0000...0000'}
@@ -716,10 +775,12 @@ function AccountScreen(): React.JSX.Element {
         </View>
 
         {/* Settings rows */}
-        <View style={styles.settingsRow}>
-          <Text style={styles.settingsIcon}>🔐</Text>
-          <Text style={styles.settingsLabel}>Face ID / Touch ID</Text>
-          <Switch 
+        <View style={[styles.settingsRow, {borderBottomColor: colors.border.primary}]}>
+          <View style={[styles.settingsIconCircle, {backgroundColor: colors.background.tertiary}]}>
+            <Text style={styles.settingsIconText}>🔐</Text>
+          </View>
+          <Text style={[styles.settingsLabel, {color: colors.text.primary}]}>Face ID / Touch ID</Text>
+          <Switch
             value={isBiometricEnabled}
             onValueChange={handleToggleBiometrics}
             trackColor={{false: colors.border.secondary, true: colors.brand.primary}}
@@ -736,25 +797,27 @@ function AccountScreen(): React.JSX.Element {
         ].map((item) => (
           <TouchableOpacity
             key={item.label}
-            style={styles.settingsRow}
+            style={[styles.settingsRow, {borderBottomColor: colors.border.primary}]}
             activeOpacity={0.6}>
-            <Text style={styles.settingsIcon}>{item.icon}</Text>
-            <Text style={styles.settingsLabel}>{item.label}</Text>
-            <Text style={styles.settingsArrow}>›</Text>
+            <View style={[styles.settingsIconCircle, {backgroundColor: colors.background.tertiary}]}>
+              <Text style={styles.settingsIconText}>{item.icon}</Text>
+            </View>
+            <Text style={[styles.settingsLabel, {color: colors.text.primary}]}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.text.tertiary} />
           </TouchableOpacity>
         ))}
 
         {/* Logout */}
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[styles.logoutButton, {backgroundColor: colors.status.errorBg, borderColor: 'rgba(255, 107, 107, 0.2)'}]}
           onPress={handleLogout}
           activeOpacity={0.7}>
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Text style={[styles.logoutText, {color: colors.status.error}]}>Log Out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>Vortex 2.0 — v0.0.1</Text>
+        <Text style={[styles.versionText, {color: colors.text.tertiary}]}>Vortex 2.0 — v0.0.1</Text>
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -786,23 +849,21 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: spacing['5xl'],
-    paddingBottom: 100,
+    paddingBottom: 110,
   },
   paddedScrollContent: {
     paddingTop: spacing['5xl'],
-    paddingBottom: 100,
-    paddingHorizontal: spacing.xl,
+    paddingBottom: 110,
+    paddingHorizontal: spacing['2xl'],
   },
 
   // Page title
   pageTitle: {
     ...typography.headingLarge,
-    color: colors.text.primary,
     marginBottom: spacing.sm,
   },
   pageSubtitle: {
     ...typography.bodyMedium,
-    color: colors.text.secondary,
     marginBottom: spacing['2xl'],
   },
 
@@ -810,7 +871,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing['2xl'],
+    justifyContent: 'space-between',
+    marginBottom: spacing.xl,
   },
 
   // Section
@@ -822,56 +884,16 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.headingSmall,
-    color: colors.text.primary,
-  },
-  sectionAction: {
-    ...typography.labelMedium,
-    color: colors.brand.primary,
-  },
-
-  // Token rows (Used by RecentActivity)
-  tokenRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
-  },
-  tokenIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  tokenInfo: {
-    flex: 1,
-  },
-  tokenSymbol: {
-    ...typography.labelLarge,
-    color: colors.text.primary,
-  },
-  tokenName: {
-    ...typography.bodySmall,
-    color: colors.text.secondary,
-  },
-  tokenBalance: {
-    alignItems: 'flex-end',
-  },
-  tokenAmount: {
-    ...typography.labelLarge,
-    color: colors.text.primary,
+    marginBottom: spacing.md,
   },
 
   // Empty state
   emptyState: {
-    paddingVertical: spacing['2xl'],
+    paddingVertical: spacing['3xl'],
     alignItems: 'center',
   },
   emptyStateText: {
     ...typography.bodyMedium,
-    color: colors.text.tertiary,
   },
 
   // Rewards
@@ -881,7 +903,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing['3xl'],
     borderWidth: 1,
-    borderColor: colors.border.primary,
   },
   rewardsHeroEmoji: {
     fontSize: 48,
@@ -889,55 +910,55 @@ const styles = StyleSheet.create({
   },
   rewardsHeroPoints: {
     ...typography.displayLarge,
-    color: colors.brand.primary,
   },
   rewardsHeroLabel: {
     ...typography.labelMedium,
-    color: colors.text.secondary,
     marginTop: spacing.xs,
     marginBottom: spacing.lg,
   },
   rewardsLevelBadge: {
-    backgroundColor: 'rgba(108, 92, 231, 0.15)',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
   },
   rewardsLevelText: {
     ...typography.labelSmall,
-    color: colors.brand.primary,
   },
   earnRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
+  },
+  earnIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
   earnIcon: {
-    fontSize: 24,
-    marginRight: spacing.md,
+    fontSize: 20,
   },
   earnInfo: {
     flex: 1,
   },
   earnTitle: {
     ...typography.labelMedium,
-    color: colors.text.primary,
   },
   earnDesc: {
     ...typography.bodySmall,
-    color: colors.text.secondary,
+    marginTop: 2,
   },
   earnPts: {
-    backgroundColor: 'rgba(0, 210, 211, 0.12)',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
   },
   earnPtsText: {
     ...typography.labelSmall,
-    color: colors.brand.secondary,
+    fontWeight: '700',
   },
 
   // MiniApps / DApp grid
@@ -949,38 +970,33 @@ const styles = StyleSheet.create({
   },
   dappCard: {
     width: '47%',
-    backgroundColor: colors.background.tertiary,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border.primary,
     gap: spacing.sm,
   },
   dappIcon: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dappEmoji: {
-    fontSize: 24,
+    fontSize: 22,
   },
   dappName: {
     ...typography.labelMedium,
-    color: colors.text.primary,
+    fontWeight: '700',
   },
   dappDesc: {
     ...typography.bodySmall,
-    color: colors.text.secondary,
   },
   comingSoonCard: {
-    backgroundColor: 'rgba(108, 92, 231, 0.08)',
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,
     padding: spacing['2xl'],
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(108, 92, 231, 0.2)',
   },
   comingSoonEmoji: {
     fontSize: 32,
@@ -988,12 +1004,10 @@ const styles = StyleSheet.create({
   },
   comingSoonTitle: {
     ...typography.labelLarge,
-    color: colors.text.primary,
     marginBottom: spacing.sm,
   },
   comingSoonText: {
     ...typography.bodySmall,
-    color: colors.text.secondary,
     textAlign: 'center',
   },
 
@@ -1003,30 +1017,26 @@ const styles = StyleSheet.create({
     paddingVertical: spacing['2xl'],
     marginBottom: spacing.xl,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
   },
   profileAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.background.tertiary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
-    borderWidth: 2,
-    borderColor: colors.brand.primary,
+    borderWidth: 2.5,
   },
   profileAvatarText: {
     fontSize: 36,
   },
   profileName: {
     ...typography.headingMedium,
-    color: colors.text.primary,
+    fontWeight: '700',
     marginBottom: spacing.xs,
   },
   profileAddress: {
     ...typography.bodySmall,
-    color: colors.text.tertiary,
     fontFamily: 'monospace',
   },
 
@@ -1036,143 +1046,143 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
   },
-  settingsIcon: {
-    fontSize: 20,
+  settingsIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: spacing.md,
+  },
+  settingsIconText: {
+    fontSize: 18,
   },
   settingsLabel: {
     ...typography.bodyLarge,
-    color: colors.text.primary,
     flex: 1,
-  },
-  settingsArrow: {
-    ...typography.headingMedium,
-    color: colors.text.tertiary,
   },
 
   // Logout
   logoutButton: {
     marginTop: spacing['3xl'],
-    backgroundColor: 'rgba(255, 71, 87, 0.1)',
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 71, 87, 0.3)',
   },
   logoutText: {
     ...typography.labelLarge,
-    color: colors.status.error,
+    fontWeight: '700',
   },
   versionText: {
     ...typography.bodySmall,
-    color: colors.text.tertiary,
     textAlign: 'center',
     marginTop: spacing['2xl'],
-  },
-
-  // Tab Bar
-  tabBar: {
-    backgroundColor: colors.background.secondary,
-    borderTopColor: colors.border.primary,
-    borderTopWidth: 1,
-    height: 80,
-    paddingBottom: spacing.sm,
-    paddingTop: spacing.sm,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  tabIconContainer: {
-    alignItems: 'center',
-  },
-  tabIcon: {
-    fontSize: 22,
-  },
-  tabDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.brand.primary,
-    marginTop: 2,
+    marginBottom: spacing['3xl'],
   },
 });
 
 // ── Send Screen Styles ───────────────────────────────────────
 
 const sendStyles = StyleSheet.create({
-  balanceInfo: {
-    backgroundColor: colors.overlay.light,
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing['2xl'],
+    gap: 0,
+  },
+  stepDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  stepLine: {
+    width: 40,
+    height: 2,
+    marginHorizontal: 4,
+  },
+  balanceCard: {
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing['2xl'],
+    borderWidth: 1,
   },
   balanceLabel: {
     ...typography.labelSmall,
-    color: colors.text.tertiary,
     marginBottom: spacing.xs,
   },
   balanceValue: {
     ...typography.headingMedium,
-    color: colors.text.primary,
+    fontWeight: '700',
   },
   inputLabel: {
     ...typography.labelMedium,
-    color: colors.text.secondary,
     marginBottom: spacing.sm,
     marginTop: spacing.lg,
   },
-  input: {
-    backgroundColor: colors.overlay.light,
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    color: colors.text.primary,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: colors.border.secondary,
-  },
-  maxButton: {
-    alignSelf: 'flex-end',
-    marginTop: spacing.sm,
+    borderWidth: 1.5,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.brand.primary + '20',
-    borderRadius: borderRadius.md,
+    height: 56,
   },
-  maxButtonText: {
-    ...typography.labelSmall,
-    color: colors.brand.primary,
-    fontWeight: '700',
+  input: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    height: '100%',
+  },
+  validationBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  maxPill: {
+    borderWidth: 1.5,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginLeft: spacing.sm,
+  },
+  maxPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
+    gap: spacing.sm,
   },
   errorText: {
     ...typography.bodySmall,
-    color: colors.status.error,
-    marginTop: spacing.md,
+    fontWeight: '500',
   },
   bottomAction: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing['2xl'],
     paddingBottom: spacing['3xl'],
     paddingTop: spacing.lg,
-    backgroundColor: colors.background.primary,
-  },
-  primaryButton: {
-    height: 56,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    ...typography.labelLarge,
-    color: '#FFFFFF',
-    fontSize: 16,
   },
 });
 
@@ -1184,20 +1194,20 @@ const confirmStyles = StyleSheet.create({
     padding: spacing['2xl'],
     alignItems: 'center',
     marginBottom: spacing['2xl'],
+    borderWidth: 1,
   },
   summaryLabel: {
     ...typography.labelMedium,
-    color: 'rgba(255,255,255,0.7)',
     marginBottom: spacing.sm,
   },
   summaryAmount: {
     ...typography.displayLarge,
-    color: '#FFFFFF',
+    fontWeight: '800',
   },
   detailsCard: {
-    backgroundColor: colors.overlay.light,
     borderRadius: borderRadius.xl,
     padding: spacing.xl,
+    borderWidth: 1,
   },
   detailRow: {
     flexDirection: 'row',
@@ -1207,16 +1217,14 @@ const confirmStyles = StyleSheet.create({
   },
   detailLabel: {
     ...typography.bodyMedium,
-    color: colors.text.tertiary,
   },
   detailValue: {
     ...typography.bodyMedium,
-    color: colors.text.primary,
     fontFamily: 'monospace',
     maxWidth: '60%',
+    textAlign: 'right',
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border.secondary,
   },
 });

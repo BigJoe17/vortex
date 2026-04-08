@@ -12,6 +12,7 @@ import {ethers} from 'ethers';
 export interface WalletResult {
   address: string;
   privateKey: string;
+  mnemonic?: string;
 }
 
 /**
@@ -28,6 +29,24 @@ export function importFromPrivateKey(key: string): WalletResult {
   return {
     address: wallet.address,
     privateKey: wallet.privateKey,
+  };
+}
+
+/**
+ * Creates a brand new fully randomized wallet instance.
+ * Returns the address, private key, and securely generated raw seed mnemonic phrase.
+ */
+export function createWallet(): WalletResult {
+  const wallet = ethers.Wallet.createRandom();
+  
+  if (!wallet.mnemonic) {
+    throw new Error('Failed to generate secure mnemonic phrase');
+  }
+
+  return {
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+    mnemonic: wallet.mnemonic.phrase,
   };
 }
 

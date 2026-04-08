@@ -1,21 +1,35 @@
+/**
+ * TokenSection — Token list wrapper with skeleton loading
+ *
+ * Shows skeleton placeholder rows during async loading.
+ */
+
 import React from 'react';
-import {View, StyleSheet, ActivityIndicator} from 'react-native';
-import {useTheme, spacing} from '@theme';
+import {View, StyleSheet} from 'react-native';
+import {useTheme, spacing, borderRadius} from '@theme';
+import {TokenRowSkeleton} from '../ui/SkeletonLoader';
 
 interface TokenSectionProps {
   isLoading: boolean;
   children: React.ReactNode;
 }
 
-export function TokenSection({isLoading, children}: TokenSectionProps): React.JSX.Element {
+export function TokenSection({
+  isLoading,
+  children,
+}: TokenSectionProps): React.JSX.Element {
   const {colors} = useTheme();
 
   return (
     <View style={styles.container}>
-      {isLoading && <ActivityIndicator size="small" color={colors.brand.primary} style={styles.loader} />}
-      <View style={styles.listContainer}>
-        {children}
-      </View>
+      {isLoading && (
+        <View style={styles.skeletonContainer}>
+          <TokenRowSkeleton />
+          <TokenRowSkeleton />
+          <TokenRowSkeleton />
+        </View>
+      )}
+      <View style={styles.listContainer}>{children}</View>
     </View>
   );
 }
@@ -24,8 +38,8 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
   },
-  loader: {
-    marginVertical: spacing.md,
+  skeletonContainer: {
+    paddingVertical: spacing.sm,
   },
   listContainer: {
     width: '100%',

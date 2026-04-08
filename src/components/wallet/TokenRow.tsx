@@ -1,6 +1,13 @@
+/**
+ * TokenRow — Premium token list item
+ *
+ * Displays token icon, name, balance, and USD value.
+ * Supports press feedback and optional price change.
+ */
+
 import React from 'react';
-import {View, Text, StyleSheet, Image} from 'react-native';
-import {colors, useTheme, typography, spacing} from '@theme';
+import {View, Text, StyleSheet, Image, TouchableOpacity} from 'react-native';
+import {useTheme, typography, spacing, borderRadius} from '@theme';
 import {formatTokenBalance} from '@shared/utils/formatting';
 
 interface TokenRowProps {
@@ -11,6 +18,7 @@ interface TokenRowProps {
   logo?: string;
   /** Primary brand color used for the fallback icon circle */
   primaryColor?: string;
+  onPress?: () => void;
 }
 
 export function TokenRow({
@@ -19,41 +27,62 @@ export function TokenRow({
   balanceFormatted,
   balanceUsd,
   logo,
-  primaryColor = '#6C5CE7',
+  primaryColor = '#FF7062',
   onPress,
-}: TokenRowProps & {onPress?: () => void}): React.JSX.Element {
-  const {colors, mode} = useTheme();
-  const displayUsd = balanceUsd ? `$${balanceUsd}` : '$0.00';
+}: TokenRowProps): React.JSX.Element {
+  const {colors} = useTheme();
+  const displayUsd = balanceUsd ? `$${parseFloat(balanceUsd).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '$0.00';
   const displayBalance = formatTokenBalance(balanceFormatted);
 
-  const ContainerElement = onPress ? React.Fragment : View;
-  
-  return (
-    <View style={[styles.container, {borderBottomColor: mode === 'dark' ? '#2c2c2e' : '#f2f2f7'}]}>
+  const content = (
+    <View style={[styles.container, {backgroundColor: 'transparent'}]}>
+      {/* Token icon */}
       <View style={styles.leftSection}>
         {logo ? (
           <Image source={{uri: logo}} style={styles.icon} />
         ) : (
-          <View style={[styles.icon, styles.fallbackIcon, { backgroundColor: `${primaryColor}20` }]}>
-            <Text style={[styles.fallbackIconText, { color: primaryColor }]}>
+          <View
+            style={[
+              styles.icon,
+              styles.fallbackIcon,
+              {backgroundColor: `${primaryColor}15`},
+            ]}>
+            <Text style={[styles.fallbackIconText, {color: primaryColor}]}>
               {symbol[0]}
             </Text>
           </View>
         )}
         <View style={styles.tokenInfo}>
-          <Text style={[styles.symbol, {color: colors.text.primary}]}>{symbol}</Text>
-          <Text style={[styles.name, {color: colors.text.secondary}]}>{name}</Text>
+          <Text style={[styles.symbol, {color: colors.text.primary}]}>
+            {symbol}
+          </Text>
+          <Text style={[styles.name, {color: colors.text.tertiary}]}>
+            {name}
+          </Text>
         </View>
       </View>
 
+      {/* Balance + USD */}
       <View style={styles.rightSection}>
-        <Text style={[styles.usdValue, {color: colors.text.primary}]}>{displayUsd}</Text>
-        <Text style={[styles.balance, {color: colors.text.secondary}]}>
+        <Text style={[styles.usdValue, {color: colors.text.primary}]}>
+          {displayUsd}
+        </Text>
+        <Text style={[styles.balance, {color: colors.text.tertiary}]}>
           {displayBalance} {symbol}
         </Text>
       </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity activeOpacity={0.65} onPress={onPress}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({
@@ -61,9 +90,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: spacing.xl,
-    borderBottomWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: spacing['2xl'],
   },
   leftSection: {
     flexDirection: 'row',
@@ -71,17 +99,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   icon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginRight: 14, 
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 14,
   },
   fallbackIcon: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   fallbackIconText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
   },
   tokenInfo: {
@@ -89,27 +117,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   symbol: {
-    ...typography.headingMedium,
+    ...typography.labelLarge,
     fontWeight: '700',
     marginBottom: 2,
   },
   name: {
-    ...typography.labelMedium,
-    fontWeight: '500',
+    ...typography.bodySmall,
+    fontWeight: '400',
   },
   rightSection: {
     alignItems: 'flex-end',
     justifyContent: 'center',
   },
   usdValue: {
-    ...typography.headingMedium,
+    ...typography.labelLarge,
     fontWeight: '700',
     marginBottom: 2,
-    textAlign: 'right', 
+    textAlign: 'right',
   },
   balance: {
-    ...typography.labelMedium,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    ...typography.bodySmall,
+    fontWeight: '500',
   },
 });

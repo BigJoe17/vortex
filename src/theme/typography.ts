@@ -1,7 +1,8 @@
 /**
  * Vortex 2.0 — Typography System
  *
- * Adjusted typography scales for a modern, clean Web3 presence.
+ * Premium Web3 typography with display, heading, body, label, and mono scales.
+ * Uses system fonts for maximum compatibility.
  */
 
 import {Platform, TextStyle} from 'react-native';
@@ -36,18 +37,35 @@ export const typography = {
     letterSpacing: -0.3,
   } as TextStyle,
 
+  // ── Balance (new — large wallet balance) ───────
+  balanceDisplay: {
+    fontFamily,
+    fontSize: 48,
+    lineHeight: 56,
+    fontWeight: '800',
+    letterSpacing: -1,
+  } as TextStyle,
+
+  balanceSmall: {
+    fontFamily,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '600',
+    letterSpacing: 0,
+  } as TextStyle,
+
   // ── Heading ────────────────────────────────────
   headingLarge: {
     fontFamily,
-    fontSize: 18, // Reduced from 24
+    fontSize: 22,
     lineHeight: 28,
     fontWeight: '700',
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   } as TextStyle,
 
   headingMedium: {
     fontFamily,
-    fontSize: 16, // Reduced from 20
+    fontSize: 18,
     lineHeight: 24,
     fontWeight: '600',
     letterSpacing: -0.1,
@@ -55,7 +73,7 @@ export const typography = {
 
   headingSmall: {
     fontFamily,
-    fontSize: 14, // Reduced from 16
+    fontSize: 15,
     lineHeight: 20,
     fontWeight: '600',
   } as TextStyle,
@@ -85,7 +103,7 @@ export const typography = {
   // ── Label ──────────────────────────────────────
   labelLarge: {
     fontFamily,
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 20,
     fontWeight: '600',
     letterSpacing: 0.1,
@@ -93,7 +111,7 @@ export const typography = {
 
   labelMedium: {
     fontFamily,
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 16,
     fontWeight: '600',
     letterSpacing: 0.1,
@@ -101,7 +119,7 @@ export const typography = {
 
   labelSmall: {
     fontFamily,
-    fontSize: 10,
+    fontSize: 11,
     lineHeight: 14,
     fontWeight: '600',
     letterSpacing: 0.2,

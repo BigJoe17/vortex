@@ -2,7 +2,7 @@
  * Vortex 2.0 — Spacing & Layout System
  *
  * 4px base unit for consistent spacing.
- * Naming convention: xs, sm, md, lg, xl, 2xl, 3xl
+ * 8px grid alignment for all major layout decisions.
  */
 
 export const spacing = {
@@ -31,7 +31,7 @@ export const borderRadius = {
 
 export const layout = {
   /** Standard horizontal padding for screens */
-  screenPaddingHorizontal: 20,
+  screenPaddingHorizontal: 24,
   /** Standard top padding for screens */
   screenPaddingTop: 16,
   /** Standard bottom padding for screens (above tab bar) */
@@ -41,7 +41,7 @@ export const layout = {
   /** Card minimum height */
   cardMinHeight: 80,
   /** Button height */
-  buttonHeight: 52,
+  buttonHeight: 56,
   /** Input height */
   inputHeight: 52,
   /** Icon sizes */

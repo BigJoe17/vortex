@@ -8,6 +8,9 @@ export type AuthStackParamList = {
   Welcome: undefined;
   Username: undefined;
   Avatar: {username: string};
+  CreateWallet: {username: string; avatarId: string};
+  SeedPhrase: {username: string; avatarId: string};
+  ConfirmSeed: {username: string; avatarId: string};
   ImportWallet: undefined;
 };
 

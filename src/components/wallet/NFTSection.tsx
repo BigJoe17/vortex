@@ -1,3 +1,7 @@
+/**
+ * NFTSection — NFT collection display with empty state
+ */
+
 import React from 'react';
 import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
 import {useTheme, typography, spacing, borderRadius} from '@theme';
@@ -7,18 +11,38 @@ export function NFTSection(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, {color: colors.text.primary}]}>Collectibles</Text>
-      
-      <View style={[styles.card, {backgroundColor: colors.background.tertiary}]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: colors.background.secondary,
+            borderColor: colors.border.primary,
+          },
+        ]}>
         <View style={styles.emptyState}>
-          <Text style={[styles.emptyEmoji]}>🖼️</Text>
-          <Text style={[styles.emptyTitle, {color: colors.text.primary}]}>No NFTs yet</Text>
-          <Text style={[styles.emptyDesc, {color: colors.text.secondary}]}>
+          <View
+            style={[
+              styles.emptyIconCircle,
+              {backgroundColor: colors.background.tertiary},
+            ]}>
+            <Text style={styles.emptyEmoji}>🖼️</Text>
+          </View>
+          <Text style={[styles.emptyTitle, {color: colors.text.primary}]}>
+            No NFTs yet
+          </Text>
+          <Text style={[styles.emptyDesc, {color: colors.text.tertiary}]}>
             NFTs that you buy or receive will show up here.
           </Text>
-          
-          <TouchableOpacity style={[styles.button, {backgroundColor: colors.brand.primary + '20'}]}>
-             <Text style={[styles.buttonText, {color: colors.brand.primary}]}>Receive NFT</Text>
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              {backgroundColor: colors.brand.primary + '15'},
+            ]}
+            activeOpacity={0.7}>
+            <Text style={[styles.buttonText, {color: colors.brand.primary}]}>
+              Receive NFT
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -29,40 +53,47 @@ export function NFTSection(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-  },
-  title: {
-    ...typography.headingLarge,
-    marginBottom: spacing.md,
+    paddingHorizontal: spacing['2xl'],
   },
   card: {
     borderRadius: borderRadius.xl,
-    padding: spacing.xl,
+    padding: spacing['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.xl,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
   },
   emptyEmoji: {
-    fontSize: 40,
-    marginBottom: spacing.sm,
+    fontSize: 28,
   },
   emptyTitle: {
     ...typography.headingMedium,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   emptyDesc: {
     ...typography.bodyMedium,
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    lineHeight: 20,
+    marginBottom: spacing.xl,
   },
   button: {
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.sm,
-    borderRadius: 100,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: borderRadius.full,
   },
   buttonText: {
-    ...typography.labelLarge,
+    ...typography.labelMedium,
+    fontWeight: '700',
   },
 });

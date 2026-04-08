@@ -17,8 +17,10 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
+import {Ionicons} from '@expo/vector-icons';
 import {colors, typography, spacing, borderRadius} from '@theme';
 import {useAuthStore} from '@store/authStore';
 import {useWalletStore} from '@store/walletStore';
@@ -29,6 +31,11 @@ import {
   validateMnemonic,
 } from '@services/wallet/walletService';
 import {secureStorage} from '@services/storage/secureStorage';
+import {encryptPrivateKey, hashPin} from '@services/security/encryptionService';
+import {ActionButton} from '../../components/ui/ActionButton';
+import {CreateWalletScreen} from '../../screens/CreateWalletScreen';
+import {SeedPhraseScreen} from '../../screens/SeedPhraseScreen';
+import {ConfirmSeedScreen} from '../../screens/ConfirmSeedScreen';
 import type {AuthStackParamList} from './types';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 
@@ -42,82 +49,73 @@ type AuthNavProp = NativeStackNavigationProp<AuthStackParamList>;
 function WelcomeScreen({navigation}: {navigation: AuthNavProp}): React.JSX.Element {
   return (
     <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A', '#141428']}
+      colors={[colors.background.primary, '#0D0D10', '#111118']}
       style={styles.container}>
       {/* Decorative gradient orbs */}
       <View style={styles.orbContainer}>
         <LinearGradient
-          colors={['rgba(108, 92, 231, 0.3)', 'rgba(108, 92, 231, 0)']}
-          style={[styles.orb, styles.orbPurple]}
+          colors={['rgba(255, 112, 98, 0.2)', 'rgba(255, 112, 98, 0)']}
+          style={[styles.orb, styles.orbPrimary]}
         />
         <LinearGradient
-          colors={['rgba(0, 210, 211, 0.2)', 'rgba(0, 210, 211, 0)']}
+          colors={['rgba(78, 205, 196, 0.15)', 'rgba(78, 205, 196, 0)']}
           style={[styles.orb, styles.orbTeal]}
         />
       </View>
 
       {/* Logo area */}
       <View style={styles.logoContainer}>
-        <LinearGradient
-          colors={[colors.brand.primary, colors.brand.secondary]}
-          start={{x: 0, y: 0}}
-          end={{x: 1, y: 1}}
-          style={styles.logoGradient}>
-          <Text style={styles.logoText}>V</Text>
-        </LinearGradient>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Title */}
       <View style={styles.titleContainer}>
         <Text style={styles.title}>Vortex</Text>
-        <Text style={styles.versionBadge}>2.0</Text>
+        <View style={[styles.versionBadge, {backgroundColor: colors.brand.secondary + '18'}]}>
+          <Text style={[styles.versionText, {color: colors.brand.secondary}]}>2.0</Text>
+        </View>
       </View>
       <Text style={styles.subtitle}>The Future of Digital Finance</Text>
 
       {/* Feature pills */}
       <View style={styles.pillsContainer}>
-        <View style={styles.pill}>
+        <View style={[styles.pill, {borderColor: colors.border.primary}]}>
           <Text style={styles.pillIcon}>🔐</Text>
-          <Text style={styles.pillText}>Secure</Text>
+          <Text style={[styles.pillText, {color: colors.text.secondary}]}>Secure</Text>
         </View>
-        <View style={styles.pill}>
+        <View style={[styles.pill, {borderColor: colors.border.primary}]}>
           <Text style={styles.pillIcon}>⚡</Text>
-          <Text style={styles.pillText}>Fast</Text>
+          <Text style={[styles.pillText, {color: colors.text.secondary}]}>Fast</Text>
         </View>
-        <View style={styles.pill}>
+        <View style={[styles.pill, {borderColor: colors.border.primary}]}>
           <Text style={styles.pillIcon}>🌐</Text>
-          <Text style={styles.pillText}>Web3</Text>
+          <Text style={[styles.pillText, {color: colors.text.secondary}]}>Web3</Text>
         </View>
       </View>
 
       {/* CTA Buttons */}
       <View style={styles.ctaContainer}>
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Username')}>
-          <LinearGradient
-            colors={[colors.brand.primary, colors.brand.primaryDark]}
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 0}}
-            style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>
-              Create New Vortex Account
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        <ActionButton
+          label="Create New Vortex Account"
+          onPress={() => navigation.navigate('Username')}
+        />
 
         <TouchableOpacity
-          style={styles.secondaryButton}
+          style={[styles.secondaryButton, {borderColor: colors.border.secondary, backgroundColor: colors.overlay.light}]}
           activeOpacity={0.7}
           onPress={() => navigation.navigate('ImportWallet')}>
-          <Text style={styles.secondaryButtonText}>
+          <Text style={[styles.secondaryButtonText, {color: colors.text.secondary}]}>
             Already Have an Account
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Bottom text */}
-      <Text style={styles.footerText}>
+      <Text style={[styles.footerText, {color: colors.text.tertiary}]}>
         Your keys. Your crypto. Your future.
       </Text>
     </LinearGradient>
@@ -150,31 +148,30 @@ function UsernameScreen({navigation}: {navigation: AuthNavProp}): React.JSX.Elem
   };
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screenContainer}>
+    <View style={[styles.screenContainer, {backgroundColor: colors.background.primary}]}>
       {/* Back button */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>← Back</Text>
+        <Ionicons name="chevron-back" size={24} color={colors.text.secondary} />
+        <Text style={[styles.backButtonText, {color: colors.text.secondary}]}>Back</Text>
       </TouchableOpacity>
 
       <View style={styles.screenContent}>
         <View style={styles.screenHeader}>
           <Text style={styles.screenEmoji}>👤</Text>
-          <Text style={styles.screenTitle}>Claim Your Username</Text>
-          <Text style={styles.screenSubtitle}>
+          <Text style={[styles.screenTitle, {color: colors.text.primary}]}>Claim Your Username</Text>
+          <Text style={[styles.screenSubtitle, {color: colors.text.tertiary}]}>
             Choose a unique username for your Vortex wallet. This is how others
             will find you.
           </Text>
         </View>
 
         {/* Input */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputPrefix}>@</Text>
+        <View style={[styles.inputContainer, {backgroundColor: colors.background.tertiary, borderColor: error ? colors.status.error : username.length >= 3 ? colors.status.success : colors.border.secondary}]}>
+          <Text style={[styles.inputPrefix, {color: colors.brand.primary}]}>@</Text>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, {color: colors.text.primary}]}
             placeholder="username"
             placeholderTextColor={colors.text.tertiary}
             value={username}
@@ -184,16 +181,19 @@ function UsernameScreen({navigation}: {navigation: AuthNavProp}): React.JSX.Elem
             maxLength={20}
           />
         </View>
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <Text style={[styles.errorText, {color: colors.status.error}]}>{error}</Text> : null}
         {username.length >= 3 && !error ? (
-          <Text style={styles.successText}>✓ @{username} is available</Text>
+          <View style={styles.successRow}>
+            <Ionicons name="checkmark-circle" size={14} color={colors.status.success} />
+            <Text style={[styles.successText, {color: colors.status.success}]}>@{username} is available</Text>
+          </View>
         ) : null}
 
         {/* Rules */}
         <View style={styles.rulesContainer}>
           {['3-20 characters', 'Letters, numbers, underscores', 'Cannot be changed later'].map(
             (rule) => (
-              <Text key={rule} style={styles.ruleText}>
+              <Text key={rule} style={[styles.ruleText, {color: colors.text.tertiary}]}>
                 • {rule}
               </Text>
             ),
@@ -203,24 +203,13 @@ function UsernameScreen({navigation}: {navigation: AuthNavProp}): React.JSX.Elem
 
       {/* Continue button */}
       <View style={styles.bottomAction}>
-        <TouchableOpacity
-          activeOpacity={0.8}
+        <ActionButton
+          label="Continue"
           onPress={handleContinue}
-          disabled={username.length < 3 || !!error}>
-          <LinearGradient
-            colors={
-              username.length >= 3 && !error
-                ? [colors.brand.primary, colors.brand.primaryDark]
-                : ['#333', '#222']
-            }
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 0}}
-            style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Continue</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          disabled={username.length < 3 || !!error}
+        />
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -228,9 +217,8 @@ function UsernameScreen({navigation}: {navigation: AuthNavProp}): React.JSX.Elem
 
 const AVATARS = ['🦊', '🐺', '🦁', '🐯', '🦅', '🐉', '🦈', '🐋', '🦄', '🔥', '💎', '⚡'];
 
-function AvatarScreen({route}: {route: {params: {username: string}}}): React.JSX.Element {
+function AvatarScreen({route, navigation}: {route: {params: {username: string}}, navigation: AuthNavProp}): React.JSX.Element {
   const [selected, setSelected] = useState<number | null>(null);
-  const login = useAuthStore((state) => state.login);
   const {username} = route.params;
 
   const handleContinue = () => {
@@ -238,28 +226,17 @@ function AvatarScreen({route}: {route: {params: {username: string}}}): React.JSX
       Alert.alert('Select an Avatar', 'Please choose an avatar to continue.');
       return;
     }
-    // Complete onboarding — set auth state
-    login(
-      {
-        id: `user-${Date.now()}`,
-        username,
-        walletAddress: '0x0000000000000000000000000000000000000000',
-        avatarId: AVATARS[selected],
-        createdAt: new Date().toISOString(),
-      },
-      'onboarding-token',
-    );
+    // Deep Link to cryptographic onboarding flow dynamically natively
+    navigation.navigate('CreateWallet', {username, avatarId: AVATARS[selected] || '🦊'});
   };
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screenContainer}>
+    <View style={[styles.screenContainer, {backgroundColor: colors.background.primary}]}>
       <View style={styles.screenContent}>
         <View style={styles.screenHeader}>
           <Text style={styles.screenEmoji}>🎨</Text>
-          <Text style={styles.screenTitle}>Choose Your Avatar</Text>
-          <Text style={styles.screenSubtitle}>
+          <Text style={[styles.screenTitle, {color: colors.text.primary}]}>Choose Your Avatar</Text>
+          <Text style={[styles.screenSubtitle, {color: colors.text.tertiary}]}>
             Pick an avatar that represents you in the Vortex ecosystem.
           </Text>
         </View>
@@ -271,7 +248,16 @@ function AvatarScreen({route}: {route: {params: {username: string}}}): React.JSX
               key={index}
               style={[
                 styles.avatarItem,
-                selected === index && styles.avatarSelected,
+                {backgroundColor: colors.background.tertiary, borderColor: colors.border.primary},
+                selected === index && {
+                  borderColor: colors.brand.primary,
+                  backgroundColor: colors.brand.primary + '12',
+                  shadowColor: colors.brand.primary,
+                  shadowOffset: {width: 0, height: 0},
+                  shadowOpacity: 0.3,
+                  shadowRadius: 10,
+                  elevation: 6,
+                },
               ]}
               onPress={() => setSelected(index)}
               activeOpacity={0.7}>
@@ -283,24 +269,13 @@ function AvatarScreen({route}: {route: {params: {username: string}}}): React.JSX
 
       {/* Continue button */}
       <View style={styles.bottomAction}>
-        <TouchableOpacity
-          activeOpacity={0.8}
+        <ActionButton
+          label="Continue"
           onPress={handleContinue}
-          disabled={selected === null}>
-          <LinearGradient
-            colors={
-              selected !== null
-                ? [colors.brand.primary, colors.brand.primaryDark]
-                : ['#333', '#222']
-            }
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 0}}
-            style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Continue</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          disabled={selected === null}
+        />
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -310,6 +285,8 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
   const [walletType, setWalletType] = useState<'evm' | 'multi' | null>(null);
   const [importMethod, setImportMethod] = useState<'seed' | 'key' | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const login = useAuthStore((state) => state.login);
@@ -332,6 +309,16 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
       return;
     }
 
+    // Validate PIN
+    if (!pin || pin.length < 6) {
+      setError('PIN must be at least 6 digits');
+      return;
+    }
+    if (pin !== confirmPin) {
+      setError('PINs do not match');
+      return;
+    }
+
     setError('');
     setIsLoading(true);
 
@@ -342,13 +329,20 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
           ? importFromPrivateKey(trimmed)
           : importFromSeedPhrase(trimmed);
 
-      // 2. Store securely (encrypted by OS keystore)
-      await secureStorage.saveWallet(result.privateKey, result.address);
+      // 2. Encrypt private key with PIN (PBKDF2 + AES-CBC)
+      const encryptedKey = encryptPrivateKey(result.privateKey, pin);
 
-      // 3. Update wallet store
+      // 3. Hash PIN for future verification (SHA-256)
+      const pinHash = hashPin(pin);
+
+      // 4. Store encrypted key + PIN hash in secure storage
+      await secureStorage.saveEncryptedWallet(encryptedKey, result.address);
+      await secureStorage.savePinHash(pinHash);
+
+      // 5. Update wallet store
       initWallet(result.address);
 
-      // 4. Log in with real wallet address
+      // 6. Log in with real wallet address
       login(
         {
           id: `imported-${Date.now()}`,
@@ -368,14 +362,13 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
   };
 
   return (
-    <LinearGradient
-      colors={[colors.background.primary, '#0D0D1A']}
-      style={styles.screenContainer}>
+    <View style={[styles.screenContainer, {backgroundColor: colors.background.primary}]}>
       {/* Back button */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>← Back</Text>
+        <Ionicons name="chevron-back" size={24} color={colors.text.secondary} />
+        <Text style={[styles.backButtonText, {color: colors.text.secondary}]}>Back</Text>
       </TouchableOpacity>
 
       <ScrollView
@@ -384,68 +377,72 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
         showsVerticalScrollIndicator={false}>
         <View style={styles.screenHeader}>
           <Text style={styles.screenEmoji}>📥</Text>
-          <Text style={styles.screenTitle}>Import Wallet</Text>
-          <Text style={styles.screenSubtitle}>
+          <Text style={[styles.screenTitle, {color: colors.text.primary}]}>Import Wallet</Text>
+          <Text style={[styles.screenSubtitle, {color: colors.text.tertiary}]}>
             Restore your existing wallet by choosing your wallet type and import
             method.
           </Text>
         </View>
 
         {/* Wallet type selection */}
-        <Text style={styles.sectionLabel}>Wallet Type</Text>
+        <Text style={[styles.sectionLabel, {color: colors.text.primary}]}>Wallet Type</Text>
         <View style={styles.optionRow}>
           <TouchableOpacity
             style={[
               styles.optionCard,
-              walletType === 'evm' && styles.optionSelected,
+              {backgroundColor: colors.background.tertiary, borderColor: colors.border.primary},
+              walletType === 'evm' && {borderColor: colors.brand.primary, backgroundColor: colors.brand.primary + '10'},
             ]}
             onPress={() => setWalletType('evm')}
             activeOpacity={0.7}>
             <Text style={styles.optionEmoji}>⟠</Text>
-            <Text style={styles.optionTitle}>EVM</Text>
-            <Text style={styles.optionDesc}>Ethereum, Polygon, BSC</Text>
+            <Text style={[styles.optionTitle, {color: colors.text.primary}]}>EVM</Text>
+            <Text style={[styles.optionDesc, {color: colors.text.tertiary}]}>Ethereum, Polygon, BSC</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[
               styles.optionCard,
-              walletType === 'multi' && styles.optionSelected,
+              {backgroundColor: colors.background.tertiary, borderColor: colors.border.primary},
+              walletType === 'multi' && {borderColor: colors.brand.primary, backgroundColor: colors.brand.primary + '10'},
             ]}
             onPress={() => setWalletType('multi')}
             activeOpacity={0.7}>
             <Text style={styles.optionEmoji}>🌐</Text>
-            <Text style={styles.optionTitle}>Multi-Chain</Text>
-            <Text style={styles.optionDesc}>EVM + Solana, Bitcoin</Text>
+            <Text style={[styles.optionTitle, {color: colors.text.primary}]}>Multi-Chain</Text>
+            <Text style={[styles.optionDesc, {color: colors.text.tertiary}]}>EVM + Solana, Bitcoin</Text>
           </TouchableOpacity>
         </View>
 
         {/* Import method selection */}
         {walletType && (
           <>
-            <Text style={styles.sectionLabel}>Import Method</Text>
+            <Text style={[styles.sectionLabel, {color: colors.text.primary}]}>Import Method</Text>
             <View style={styles.optionRow}>
               <TouchableOpacity
                 style={[
                   styles.optionCard,
-                  importMethod === 'seed' && styles.optionSelected,
+                  {backgroundColor: colors.background.tertiary, borderColor: colors.border.primary},
+                  importMethod === 'seed' && {borderColor: colors.brand.primary, backgroundColor: colors.brand.primary + '10'},
                 ]}
                 onPress={() => setImportMethod('seed')}
                 activeOpacity={0.7}>
                 <Text style={styles.optionEmoji}>📝</Text>
-                <Text style={styles.optionTitle}>Seed Phrase</Text>
-                <Text style={styles.optionDesc}>12 or 24 words</Text>
+                <Text style={[styles.optionTitle, {color: colors.text.primary}]}>Seed Phrase</Text>
+                <Text style={[styles.optionDesc, {color: colors.text.tertiary}]}>12 or 24 words</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.optionCard,
-                  importMethod === 'key' && styles.optionSelected,
+                  {backgroundColor: colors.background.tertiary, borderColor: colors.border.primary},
+                  importMethod === 'key' && {borderColor: colors.brand.primary, backgroundColor: colors.brand.primary + '10'},
                 ]}
                 onPress={() => setImportMethod('key')}
                 activeOpacity={0.7}>
                 <Text style={styles.optionEmoji}>🔑</Text>
-                <Text style={styles.optionTitle}>Private Key</Text>
-                <Text style={styles.optionDesc}>Hex string</Text>
+                <Text style={[styles.optionTitle, {color: colors.text.primary}]}>Private Key</Text>
+                <Text style={[styles.optionDesc, {color: colors.text.tertiary}]}>Hex string</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -454,13 +451,13 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
         {/* Input area */}
         {importMethod && (
           <>
-            <Text style={styles.sectionLabel}>
+            <Text style={[styles.sectionLabel, {color: colors.text.primary}]}>
               {importMethod === 'seed'
                 ? 'Enter Seed Phrase'
                 : 'Enter Private Key'}
             </Text>
             <TextInput
-              style={styles.multilineInput}
+              style={[styles.multilineInput, {backgroundColor: colors.background.tertiary, borderColor: colors.border.secondary, color: colors.text.primary}]}
               placeholder={
                 importMethod === 'seed'
                   ? 'word1 word2 word3 ...'
@@ -482,16 +479,66 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
 
             {/* Error message */}
             {error ? (
-              <Text style={styles.errorText}>{error}</Text>
+              <View style={styles.errorRow}>
+                <Ionicons name="warning" size={14} color={colors.status.error} />
+                <Text style={[styles.errorText, {color: colors.status.error}]}>{error}</Text>
+              </View>
             ) : null}
 
             {/* Security warning */}
-            <View style={styles.warningBox}>
-              <Text style={styles.warningText}>
+            <View style={[styles.warningBox, {backgroundColor: colors.brand.secondary + '0A', borderColor: colors.brand.secondary + '20'}]}>
+              <Text style={[styles.warningText, {color: colors.brand.secondary}]}>
                 🔒 Your keys never leave this device. We do not store or transmit
                 your seed phrase or private key.
               </Text>
             </View>
+
+            {/* PIN Setup */}
+            <Text style={[styles.sectionLabel, {color: colors.text.primary, marginTop: spacing.xl}]}>Set a Wallet PIN</Text>
+            <Text style={[{color: colors.text.tertiary, ...typography.bodySmall, marginBottom: spacing.md}]}>
+              This PIN encrypts your private key. You'll need it to send transactions.
+            </Text>
+
+            <TextInput
+              style={[styles.multilineInput, {
+                backgroundColor: colors.background.tertiary,
+                borderColor: pin.length >= 6 ? colors.status.success : colors.border.secondary,
+                color: colors.text.primary,
+                minHeight: 56,
+                marginBottom: spacing.md,
+              }]}
+              placeholder="Enter 6-digit PIN"
+              placeholderTextColor={colors.text.tertiary}
+              value={pin}
+              onChangeText={(t) => {
+                setPin(t.replace(/[^0-9]/g, '').slice(0, 8));
+                setError('');
+              }}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              editable={!isLoading}
+            />
+
+            <TextInput
+              style={[styles.multilineInput, {
+                backgroundColor: colors.background.tertiary,
+                borderColor: confirmPin.length >= 6 && confirmPin === pin ? colors.status.success : colors.border.secondary,
+                color: colors.text.primary,
+                minHeight: 56,
+              }]}
+              placeholder="Confirm PIN"
+              placeholderTextColor={colors.text.tertiary}
+              value={confirmPin}
+              onChangeText={(t) => {
+                setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 8));
+                setError('');
+              }}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              editable={!isLoading}
+            />
           </>
         )}
       </ScrollView>
@@ -499,29 +546,15 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
       {/* Import button */}
       {importMethod && (
         <View style={styles.bottomAction}>
-          <TouchableOpacity
-            activeOpacity={0.8}
+          <ActionButton
+            label="Import Wallet"
             onPress={handleImport}
-            disabled={!inputValue.trim() || isLoading}>
-            <LinearGradient
-              colors={
-                inputValue.trim() && !isLoading
-                  ? [colors.brand.primary, colors.brand.primaryDark]
-                  : ['#333', '#222']
-              }
-              start={{x: 0, y: 0}}
-              end={{x: 1, y: 0}}
-              style={styles.primaryButton}>
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Import Wallet</Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+            disabled={!inputValue.trim() || !pin || pin.length < 6 || pin !== confirmPin || isLoading}
+            loading={isLoading}
+          />
         </View>
       )}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -538,6 +571,9 @@ export function AuthNavigator(): React.JSX.Element {
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="Username" component={UsernameScreen} />
       <Stack.Screen name="Avatar" component={AvatarScreen} />
+      <Stack.Screen name="CreateWallet" component={CreateWalletScreen} />
+      <Stack.Screen name="SeedPhrase" component={SeedPhraseScreen} />
+      <Stack.Screen name="ConfirmSeed" component={ConfirmSeedScreen} />
       <Stack.Screen name="ImportWallet" component={ImportWalletScreen} />
     </Stack.Navigator>
   );
@@ -551,7 +587,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing['2xl'],
   },
   orbContainer: {
     ...StyleSheet.absoluteFillObject,
@@ -561,7 +597,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 999,
   },
-  orbPurple: {
+  orbPrimary: {
     width: width * 0.8,
     height: width * 0.8,
     top: -width * 0.2,
@@ -575,28 +611,15 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     marginBottom: spacing['3xl'],
-  },
-  logoGradient: {
-    width: 88,
-    height: 88,
-    borderRadius: borderRadius['2xl'],
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.brand.primary,
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 16,
   },
-  logoText: {
-    fontSize: 44,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -1,
+  logoImage: {
+    width: 100,
+    height: 100,
   },
   titleContainer: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: spacing.sm,
   },
   title: {
@@ -605,14 +628,15 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   versionBadge: {
-    ...typography.labelSmall,
-    color: colors.brand.secondary,
-    backgroundColor: 'rgba(0, 210, 211, 0.15)',
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing['2xs'],
+    paddingVertical: spacing['2xs'] + 1,
     borderRadius: borderRadius.sm,
     marginLeft: spacing.sm,
     overflow: 'hidden',
+  },
+  versionText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   subtitle: {
     ...typography.bodyLarge,
@@ -633,7 +657,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
     borderWidth: 1,
-    borderColor: colors.border.primary,
     gap: spacing.xs,
   },
   pillIcon: {
@@ -641,29 +664,12 @@ const styles = StyleSheet.create({
   },
   pillText: {
     ...typography.labelMedium,
-    color: colors.text.secondary,
   },
 
-  // CTA Buttons (shared)
+  // CTA Buttons
   ctaContainer: {
     width: '100%',
     gap: spacing.md,
-  },
-  primaryButton: {
-    height: 56,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.brand.primary,
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  primaryButtonText: {
-    ...typography.labelLarge,
-    color: '#FFFFFF',
-    fontSize: 16,
   },
   secondaryButton: {
     height: 56,
@@ -671,17 +677,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border.secondary,
-    backgroundColor: colors.overlay.light,
   },
   secondaryButtonText: {
     ...typography.labelLarge,
-    color: colors.text.secondary,
     fontSize: 16,
   },
   footerText: {
     ...typography.bodySmall,
-    color: colors.text.tertiary,
     marginTop: spacing['3xl'],
     textAlign: 'center',
   },
@@ -692,7 +694,7 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     flexGrow: 1,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing['2xl'],
     paddingTop: spacing.xl,
     paddingBottom: spacing['3xl'],
   },
@@ -707,31 +709,31 @@ const styles = StyleSheet.create({
   },
   screenTitle: {
     ...typography.headingLarge,
-    color: colors.text.primary,
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
   screenSubtitle: {
     ...typography.bodyMedium,
-    color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
   },
 
   // Back button
   backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.xl,
     paddingTop: spacing['3xl'],
     paddingBottom: spacing.md,
+    gap: spacing.xs,
   },
   backButtonText: {
     ...typography.labelLarge,
-    color: colors.text.secondary,
   },
 
   // Bottom action
   bottomAction: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing['2xl'],
     paddingBottom: spacing['3xl'],
     paddingTop: spacing.lg,
   },
@@ -740,35 +742,40 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background.tertiary,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border.secondary,
+    borderWidth: 1.5,
     paddingHorizontal: spacing.lg,
     height: 56,
   },
   inputPrefix: {
     ...typography.headingMedium,
-    color: colors.brand.primary,
     marginRight: spacing.xs,
   },
   textInput: {
     flex: 1,
     ...typography.bodyLarge,
-    color: colors.text.primary,
     height: '100%',
   },
   errorText: {
     ...typography.bodySmall,
-    color: colors.status.error,
     marginTop: spacing.sm,
     marginLeft: spacing.xs,
   },
-  successText: {
-    ...typography.bodySmall,
-    color: colors.status.success,
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  successRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: spacing.sm,
     marginLeft: spacing.xs,
+    gap: spacing.xs,
+  },
+  successText: {
+    ...typography.bodySmall,
   },
   rulesContainer: {
     marginTop: spacing['2xl'],
@@ -776,7 +783,6 @@ const styles = StyleSheet.create({
   },
   ruleText: {
     ...typography.bodySmall,
-    color: colors.text.tertiary,
   },
 
   // Avatar grid
@@ -790,20 +796,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: borderRadius.xl,
-    backgroundColor: colors.background.tertiary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: colors.border.primary,
-  },
-  avatarSelected: {
-    borderColor: colors.brand.primary,
-    backgroundColor: 'rgba(108, 92, 231, 0.15)',
-    shadowColor: colors.brand.primary,
-    shadowOffset: {width: 0, height: 0},
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
   avatarEmoji: {
     fontSize: 32,
@@ -812,7 +807,6 @@ const styles = StyleSheet.create({
   // Import wallet
   sectionLabel: {
     ...typography.labelLarge,
-    color: colors.text.primary,
     marginBottom: spacing.md,
     marginTop: spacing.xl,
   },
@@ -822,17 +816,11 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     flex: 1,
-    backgroundColor: colors.background.tertiary,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: colors.border.primary,
     gap: spacing.xs,
-  },
-  optionSelected: {
-    borderColor: colors.brand.primary,
-    backgroundColor: 'rgba(108, 92, 231, 0.1)',
   },
   optionEmoji: {
     fontSize: 28,
@@ -840,35 +828,28 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     ...typography.labelMedium,
-    color: colors.text.primary,
+    fontWeight: '700',
   },
   optionDesc: {
     ...typography.bodySmall,
-    color: colors.text.tertiary,
     textAlign: 'center',
   },
   multilineInput: {
-    backgroundColor: colors.background.tertiary,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border.secondary,
+    borderWidth: 1.5,
     padding: spacing.lg,
     ...typography.bodyMedium,
-    color: colors.text.primary,
     minHeight: 56,
     textAlignVertical: 'top',
   },
   warningBox: {
-    backgroundColor: 'rgba(0, 210, 211, 0.08)',
     borderRadius: borderRadius.md,
     padding: spacing.lg,
     marginTop: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(0, 210, 211, 0.2)',
   },
   warningText: {
     ...typography.bodySmall,
-    color: colors.brand.secondary,
     lineHeight: 20,
   },
 });

@@ -24,6 +24,8 @@ interface AuthState {
   isLoading: boolean;
   isBiometricEnabled: boolean;
   isUnlocked: boolean; // Governs if the user has passed the biometric gate
+  isLocked: boolean; // Protects the active session due to inactivity
+  lastActiveAt: number; // Timestamp of the last user interaction
 
   // ── Actions ──────────────────────────────
   setUser: (user: User) => void;
@@ -32,7 +34,10 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
   setBiometricEnabled: (enabled: boolean) => void;
   setUnlocked: (status: boolean) => void;
-  login: (user: User, token: string) => void;
+  lock: () => void;
+  unlock: () => void;
+  updateActivity: () => void;
+  login: (user: User, token: string, isRestoredSession?: boolean) => void;
   logout: () => void;
   reset: () => void;
 }
@@ -44,6 +49,8 @@ const initialState = {
   isLoading: false,
   isBiometricEnabled: false,
   isUnlocked: false,
+  isLocked: false,
+  lastActiveAt: Date.now(),
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -56,12 +63,24 @@ export const useAuthStore = create<AuthState>((set) => ({
   setBiometricEnabled: (isBiometricEnabled) => set({isBiometricEnabled}),
   setUnlocked: (isUnlocked) => set({isUnlocked}),
 
-  login: (user, accessToken) =>
+  lock: () => set({isLocked: true}),
+  
+  unlock: () => set({
+    isLocked: false,
+    lastActiveAt: Date.now(),
+  }),
+
+  updateActivity: () => set({lastActiveAt: Date.now()}),
+
+  login: (user, accessToken, isRestoredSession = false) =>
     set({
       user,
       accessToken,
       isAuthenticated: true,
       isLoading: false,
+      // If the session was restored from disk, require them to unlock via PIN/Biometrics first
+      isLocked: isRestoredSession,
+      lastActiveAt: Date.now(),
     }),
 
   logout: () =>

@@ -79,37 +79,47 @@ export async function estimateGasFee(
 /**
  * Send a native token (ETH/MATIC/POL) transaction.
  *
- * 1. Reads private key from secure storage
- * 2. Creates an ethers.Wallet signer
- * 3. Validates balance
- * 4. Sends the signed transaction
- * 5. Returns transaction hash
+ * SECURITY: The private key is passed as a parameter (decrypted in the caller's
+ * function scope using the user's PIN) and is used only to create the signer.
+ * It is NEVER stored in state or logged.
+ *
+ * @param to — Recipient address
+ * @param amountEther — Amount in ETH/MATIC
+ * @param network — Target network
+ * @param privateKey — Decrypted private key (caller must decrypt with PIN)
  */
 export async function sendNativeTransaction(
   to: string,
   amountEther: string,
   network: NetworkId,
+  privateKey?: string,
 ): Promise<SendResult> {
 
   if (!isValidAddress(to)) {
     throw new Error('Invalid recipient address')
   }
 
- 
-
-  // Retrieve wallet
   const provider = getProvider(network)
 
-  const wallet = await secureStorage.getWallet()
+  // If privateKey is provided (new encrypted flow), use it directly.
+  // Otherwise, fall back to legacy unencrypted storage for backward compat.
+  let signerKey: string
 
-  if (!wallet) {
-    throw new Error('No wallet found. Please import a wallet first.')
+  if (privateKey) {
+    signerKey = privateKey
+  } else {
+    const wallet = await secureStorage.getWallet()
+    if (!wallet) {
+      throw new Error('No wallet found. Please import a wallet first.')
+    }
+    signerKey = wallet.privateKey
   }
 
-
-  const signer = new ethers.Wallet(wallet.privateKey, provider)
+  const signer = new ethers.Wallet(signerKey, provider)
   const fromAddress = signer.address
 
+  // Discard reference to raw key — only signer holds it now
+  signerKey = ''
 
   const amountWei = ethers.parseEther(amountEther)
 
@@ -123,7 +133,6 @@ export async function sendNativeTransaction(
     throw new Error('Insufficient balance including gas fees')
   }
 
-  
   const txRequest = {
     to,
     value: amountWei,
