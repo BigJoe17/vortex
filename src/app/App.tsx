@@ -4,7 +4,7 @@
  * This is the root component that sets up navigation and providers.
  * Keep this file thin — all logic lives in providers and navigators.
  */
-
+import 'react-native-get-random-values';
 import React from 'react';
 import {StatusBar} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';

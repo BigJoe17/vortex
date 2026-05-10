@@ -284,6 +284,7 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
   const [walletType, setWalletType] = useState<'evm' | 'multi' | null>(null);
   const [importMethod, setImportMethod] = useState<'seed' | 'key' | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -292,18 +293,24 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
   const initWallet = useWalletStore((state) => state.initWallet);
 
   const handleImport = async () => {
-    const trimmed = inputValue.trim();
-    if (!trimmed) {
+    const trimmedInput = inputValue.trim();
+    const trimmedUsername = username.trim();
+
+    if (!trimmedUsername) {
+      setError('Please choose a username.');
+      return;
+    }
+    if (!trimmedInput) {
       setError('Please enter your seed phrase or private key.');
       return;
     }
 
     // Validate input
-    if (importMethod === 'key' && !validatePrivateKey(trimmed)) {
+    if (importMethod === 'key' && !validatePrivateKey(trimmedInput)) {
       setError('Invalid private key. Must be a valid 64-character hex string.');
       return;
     }
-    if (importMethod === 'seed' && !validateMnemonic(trimmed)) {
+    if (importMethod === 'seed' && !validateMnemonic(trimmedInput)) {
       setError('Invalid seed phrase. Please check your words and try again.');
       return;
     }
@@ -321,43 +328,47 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
     setError('');
     setIsLoading(true);
 
-    try {
-      // 1. Import wallet using ethers.js
-      const result =
-        importMethod === 'key'
-          ? importFromPrivateKey(trimmed)
-          : importFromSeedPhrase(trimmed);
+    // Use setTimeout to allow the UI thread to update and show the loading spinner 
+    // before the CPU-heavy synchronous PBKDF2 encryption starts.
+    setTimeout(async () => {
+      try {
+        // 1. Import wallet using ethers.js
+        const result =
+          importMethod === 'key'
+            ? importFromPrivateKey(trimmedInput)
+            : importFromSeedPhrase(trimmedInput);
 
-      // 2. Encrypt private key with PIN (PBKDF2 + AES-CBC)
-      const encryptedKey = encryptPrivateKey(result.privateKey, pin);
+        // 2. Encrypt private key with PIN (PBKDF2 + AES-CBC)
+        const encryptedKey = encryptPrivateKey(result.privateKey, pin);
 
-      // 3. Hash PIN for future verification (SHA-256)
-      const pinHash = hashPin(pin);
+        // 3. Hash PIN for future verification (SHA-256)
+        const pinHash = hashPin(pin);
 
-      // 4. Store encrypted key + PIN hash in secure storage
-      await secureStorage.saveEncryptedWallet(encryptedKey, result.address);
-      await secureStorage.savePinHash(pinHash);
+        // 4. Store encrypted key + PIN hash + User profile in secure storage
+        await secureStorage.saveEncryptedWallet(encryptedKey, result.address);
+        await secureStorage.savePinHash(pinHash);
+        await secureStorage.saveUserProfile(trimmedUsername);
 
-      // 5. Update wallet store
-      initWallet(result.address);
+        // 5. Update wallet store
+        initWallet(result.address);
 
-      // 6. Log in with real wallet address
-      login(
-        {
-          id: `imported-${Date.now()}`,
-          username: result.address.slice(0, 6) + '...' + result.address.slice(-4),
-          walletAddress: result.address,
-          createdAt: new Date().toISOString(),
-        },
-        'wallet-session',
-      );
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to import wallet';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
+        // 6. Log in with custom username
+        login(
+          {
+            id: `imported-${Date.now()}`,
+            username: trimmedUsername,
+            walletAddress: result.address,
+            createdAt: new Date().toISOString(),
+          },
+          'wallet-session',
+        );
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to import wallet';
+        setError(message);
+        setIsLoading(false);
+      }
+    }, 100);
   };
 
   return (
@@ -381,6 +392,26 @@ function ImportWalletScreen({navigation}: {navigation: AuthNavProp}): React.JSX.
             Restore your existing wallet by choosing your wallet type and import
             method.
           </Text>
+        </View>
+
+        {/* Username area */}
+        <Text style={[styles.sectionLabel, {color: colors.text.primary}]}>Choose Username</Text>
+        <View style={[styles.inputContainer, {backgroundColor: colors.background.tertiary, borderColor: colors.border.secondary, marginBottom: spacing.xl}]}>
+          <Text style={[styles.inputPrefix, {color: colors.brand.primary}]}>@</Text>
+          <TextInput
+            style={[styles.textInput, {color: colors.text.primary}]}
+            placeholder="vortex_user"
+            placeholderTextColor={colors.text.tertiary}
+            value={username}
+            onChangeText={(text) => {
+              setUsername(text.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+              setError('');
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={20}
+            editable={!isLoading}
+          />
         </View>
 
         {/* Wallet type selection */}

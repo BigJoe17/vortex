@@ -51,13 +51,17 @@ export function RootNavigator(): React.JSX.Element {
     try {
       const wallet = await secureStorage.getWallet();
       if (wallet) {
+        // Fetch saved profile (username, avatar) or fallback to truncated address
+        const profile = await secureStorage.getUserProfile();
+        const displayUsername = profile?.username ?? (wallet.address.slice(0, 6) + '...' + wallet.address.slice(-4));
+
         // Wallet found in secure storage — restore session
         initWallet(wallet.address);
         login(
           {
             id: 'restored',
-            username:
-              wallet.address.slice(0, 6) + '...' + wallet.address.slice(-4),
+            username: displayUsername,
+            avatarId: profile?.avatarId,
             walletAddress: wallet.address,
             createdAt: new Date().toISOString(),
           },

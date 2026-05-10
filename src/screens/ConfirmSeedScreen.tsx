@@ -81,6 +81,7 @@ export function ConfirmSeedScreen({navigation, route}: Props): React.JSX.Element
          // 2. Persist to device keychain secureStorage
          await secureStorage.saveEncryptedWallet(encryptedPayload, rawWallet.address);
          await secureStorage.savePinHash(pinHash);
+         await secureStorage.saveUserProfile(username, avatarId);
 
          // 3. Clear ALL volatile JS memory explicitly
          tempWalletService.clearTempWallet();

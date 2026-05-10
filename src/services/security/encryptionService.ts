@@ -12,6 +12,18 @@
  */
 
 import CryptoJS from 'crypto-js';
+import { ethers } from 'ethers';
+
+/**
+ * Helper to convert Uint8Array to CryptoJS WordArray
+ */
+function toWordArray(u8: Uint8Array): CryptoJS.lib.WordArray {
+  const words: number[] = [];
+  for (let i = 0; i < u8.length; i += 4) {
+    words.push((u8[i] << 24) | (u8[i + 1] << 16) | (u8[i + 2] << 8) | u8[i + 3]);
+  }
+  return CryptoJS.lib.WordArray.create(words, u8.length);
+}
 
 /**
  * Encrypt a private key using a PIN as the passphrase.
@@ -25,14 +37,18 @@ export function encryptPrivateKey(privateKey: string, pin: string): string {
   }
 
   try {
-    // Derive a stronger key from the PIN using PBKDF2 (Hardened to 100,000 iterations)
-    const salt = CryptoJS.lib.WordArray.random(128 / 8);
+    // Use ethers.randomBytes for high-entropy randomness on Android/iOS
+    const saltBytes = ethers.randomBytes(16);
+    const salt = toWordArray(saltBytes);
+
+    // Derive a stronger key from the PIN using PBKDF2 (10,000 iterations is balanced for mobile)
     const key = CryptoJS.PBKDF2(pin, salt, {
       keySize: 256 / 32,
-      iterations: 100000,
+      iterations: 10000,
     });
 
-    const iv = CryptoJS.lib.WordArray.random(128 / 8);
+    const ivBytes = ethers.randomBytes(16);
+    const iv = toWordArray(ivBytes);
 
     const encrypted = CryptoJS.AES.encrypt(privateKey, key, {
       iv,
@@ -40,7 +56,6 @@ export function encryptPrivateKey(privateKey: string, pin: string): string {
       padding: CryptoJS.pad.Pkcs7,
     });
 
-    // Pack ciphertext + iv + salt precisely as requested
     const payload = {
       ciphertext: encrypted.toString(),
       iv: iv.toString(),
@@ -48,7 +63,8 @@ export function encryptPrivateKey(privateKey: string, pin: string): string {
     };
 
     return JSON.stringify(payload);
-  } catch {
+  } catch (error) {
+    console.error('[EncryptionService] Encryption failed:', error);
     throw new Error('Encryption failed');
   }
 }
@@ -68,10 +84,10 @@ export function decryptPrivateKey(encryptedPayload: string, pin: string): string
     const salt = CryptoJS.enc.Hex.parse(payload.salt);
     const iv = CryptoJS.enc.Hex.parse(payload.iv);
 
-    // Re-derive the same key from PIN + stored salt (Hardened to 100,000 iterations)
+    // Re-derive the same key from PIN + stored salt (Standardized to 10,000 iterations for mobile)
     const key = CryptoJS.PBKDF2(pin, salt, {
       keySize: 256 / 32,
-      iterations: 100000,
+      iterations: 10000,
     });
 
     const decrypted = CryptoJS.AES.decrypt(payload.ciphertext, key, {

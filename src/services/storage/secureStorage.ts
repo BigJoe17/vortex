@@ -211,6 +211,22 @@ class SecureStorageService {
     const hash = await this.getItem(STORAGE_KEYS.PIN_HASH);
     return hash !== null;
   }
+
+  // ── User Profile helpers ───────────────────────
+
+  /**
+   * Persist user profile metadata (username, avatar) securely.
+   */
+  async saveUserProfile(username: string, avatarId?: string): Promise<void> {
+    await this.setObject(STORAGE_KEYS.USER_DATA, {username, avatarId});
+  }
+
+  /**
+   * Retrieve the persisted user profile.
+   */
+  async getUserProfile(): Promise<{username: string; avatarId?: string} | null> {
+    return this.getObject<{username: string; avatarId?: string}>(STORAGE_KEYS.USER_DATA);
+  }
 }
 
 export const secureStorage = new SecureStorageService();
