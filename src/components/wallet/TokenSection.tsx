@@ -6,7 +6,7 @@
 
 import React from 'react';
 import {View, StyleSheet} from 'react-native';
-import {useTheme, spacing, borderRadius} from '@theme';
+import {spacing} from '@theme';
 import {TokenRowSkeleton} from '../ui/SkeletonLoader';
 
 interface TokenSectionProps {
@@ -18,8 +18,6 @@ export function TokenSection({
   isLoading,
   children,
 }: TokenSectionProps): React.JSX.Element {
-  const {colors} = useTheme();
-
   return (
     <View style={styles.container}>
       {isLoading && (

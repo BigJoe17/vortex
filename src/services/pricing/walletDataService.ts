@@ -1,20 +1,47 @@
-import { fetchWalletBalances } from '../blockchain/blockchainService';
+import { fetchWalletBalances, resetProvider } from '../blockchain/blockchainService';
 import { fetchTokens } from '../token/tokenService';
 import { fetchMarketData, getResolvedCoinId } from './marketService';
 import type { TokenWithUsd } from '../../store/tokenStore';
+import type { NetworkId } from '../../store/walletStore';
+
+type MarketNetwork = 'ethereum' | 'polygon';
+
+/**
+ * Map any NetworkId to the CoinGecko-compatible market network.
+ * Testnets map to their mainnet equivalents for pricing purposes.
+ */
+function toMarketNetwork(network: NetworkId): MarketNetwork {
+  switch (network) {
+    case 'ethereum':
+      return 'ethereum';
+    case 'polygon':
+    case 'polygon-amoy':
+    case 'localhost':
+      return 'polygon';
+  }
+}
 
 /**
  * Orchestrator service to fetch both on-chain balances and off-chain market data.
  */
 export async function getEnrichedWalletData(
   address: string,
-  network: 'ethereum' | 'polygon'
+  network: NetworkId
 ): Promise<TokenWithUsd[]> {
-  // 1. Parallel fetch on-chain balances
-  const [nativeBalances, erc20Tokens] = await Promise.all([
-    fetchWalletBalances(address, network),
-    fetchTokens(address, network),
-  ]);
+  const marketNetwork = toMarketNetwork(network);
+
+  let nativeBalances;
+
+  try {
+    // Load the native balance first so the dashboard can fail loudly if RPC is unavailable.
+    nativeBalances = await fetchWalletBalances(address, network);
+  } catch {
+    resetProvider(network);
+    throw new Error('Unable to load balances. Check your connection and try again.');
+  }
+
+  // ERC-20 discovery is best-effort; tokenService degrades to [] on API failures.
+  const erc20Tokens = await fetchTokens(address, network);
 
   const allTokens = [...nativeBalances, ...erc20Tokens];
 
@@ -25,7 +52,7 @@ export async function getEnrichedWalletData(
   }));
 
   // 3. Fetch Market Data (Batch CoinGecko Call)
-  const marketData = await fetchMarketData(tokenQueries, network);
+  const marketData = await fetchMarketData(tokenQueries, marketNetwork);
 
   // 4. Enrich and Merge Data
   const enrichedTokens: TokenWithUsd[] = allTokens.map((t) => {

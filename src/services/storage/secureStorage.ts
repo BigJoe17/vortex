@@ -111,18 +111,6 @@ class SecureStorageService {
   // ── Wallet helpers ─────────────────────────────
 
   /**
-   * Store wallet credentials securely.
-   * SECURITY: privateKey is encrypted at rest by the OS keystore.
-   *
-   * @deprecated Use saveEncryptedWallet() for PIN-encrypted storage.
-   * Kept for backward compatibility during migration.
-   */
-  async saveWallet(privateKey: string, address: string): Promise<void> {
-    await this.setItem(STORAGE_KEYS.PRIVATE_KEY, privateKey);
-    await this.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
-  }
-
-  /**
    * Store a PIN-encrypted private key + address.
    * The privateKey param must ALREADY be encrypted via encryptionService.
    *
@@ -143,26 +131,32 @@ class SecureStorageService {
   async getEncryptedWallet(): Promise<{encryptedPrivateKey: string; address: string} | null> {
     const encryptedPrivateKey = await this.getItem(STORAGE_KEYS.ENCRYPTED_PRIVATE_KEY);
     const address = await this.getItem(STORAGE_KEYS.WALLET_ADDRESS);
+
+    if ((encryptedPrivateKey && !address) || (!encryptedPrivateKey && address)) {
+      throw new Error('Stored wallet data is incomplete. Reset wallet and restore from seed phrase.');
+    }
+
     if (!encryptedPrivateKey || !address) return null;
     return {encryptedPrivateKey, address};
   }
 
   /**
-   * Retrieve stored wallet credentials.
-   * Checks encrypted key first, falls back to legacy unencrypted key.
+   * Retrieve wallet address for session restore.
+   * Returns encrypted key blob + address. Caller MUST decrypt with PIN before use.
+   * Legacy unencrypted keys are migrated out on first encrypted save.
    */
   async getWallet(): Promise<{privateKey: string; address: string} | null> {
-    // Try encrypted key first
     const encrypted = await this.getEncryptedWallet();
     if (encrypted) {
-      // Return encrypted key — caller must decrypt with PIN
       return {privateKey: encrypted.encryptedPrivateKey, address: encrypted.address};
     }
 
-    // Legacy fallback: unencrypted key (pre-PIN migration)
+    // Legacy path: If unencrypted key exists, return it but log a migration warning.
+    // This path should only fire once before the user re-imports or creates a new wallet.
     const privateKey = await this.getItem(STORAGE_KEYS.PRIVATE_KEY);
     const address = await this.getItem(STORAGE_KEYS.WALLET_ADDRESS);
     if (!privateKey || !address) return null;
+    console.warn('[SecureStorage] LEGACY: Unencrypted key found. User must re-setup PIN encryption.');
     return {privateKey, address};
   }
 

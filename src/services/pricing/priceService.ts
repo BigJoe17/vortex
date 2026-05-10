@@ -2,6 +2,22 @@
  * Production Wallet Price Service
  */
 
+import type { NetworkId } from '@store/walletStore';
+import {getCoinGeckoBaseUrl} from '@shared/utils/env';
+
+type MarketNetwork = 'ethereum' | 'polygon';
+
+function toMarketNetwork(network: NetworkId): MarketNetwork {
+  switch (network) {
+    case 'ethereum':
+      return 'ethereum';
+    case 'polygon':
+    case 'polygon-amoy':
+    case 'localhost':
+      return 'polygon';
+  }
+}
+
 interface PriceCacheEntry {
   price: number
   timestamp: number
@@ -13,7 +29,7 @@ const CACHE_TTL_MS = 120000
 
 export async function fetchTokenPrices(
   contracts: string[],
-  network: 'ethereum' | 'polygon'
+  network: NetworkId
 ): Promise<Record<string, number>> {
 
   const now = Date.now()
@@ -38,11 +54,12 @@ export async function fetchTokenPrices(
 
   try {
 
-    const platformId = network === 'polygon' ? 'polygon-pos' : 'ethereum';
+    const resolved = toMarketNetwork(network);
+    const platformId = resolved === 'polygon' ? 'polygon-pos' : 'ethereum';
     const contractQuery = neededContracts.join(',').toLowerCase();
 
     const url =
-      `https://api.coingecko.com/api/v3/simple/token_price/${platformId}` +
+      `${getCoinGeckoBaseUrl()}/simple/token_price/${platformId}` +
       `?contract_addresses=${contractQuery}&vs_currencies=usd`;
 
     const response = await fetch(url);
@@ -79,15 +96,16 @@ export async function fetchTokenPrices(
   return results
 }
 
-export async function fetchNativeTokenPrice(network: 'ethereum' | 'polygon'): Promise<number> {
-  const coinId = network === 'polygon' ? 'matic-network' : 'ethereum';
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
+export async function fetchNativeTokenPrice(network: NetworkId): Promise<number> {
+  const resolved = toMarketNetwork(network);
+  const coinId = resolved === 'polygon' ? 'matic-network' : 'ethereum';
+  const url = `${getCoinGeckoBaseUrl()}/simple/price?ids=${coinId}&vs_currencies=usd`;
   try {
     const response = await fetch(url);
     if (!response.ok) return 0;
-    const data = await response.json();
+    const data = (await response.json()) as Record<string, { usd?: number }>;
     return data[coinId]?.usd ?? 0;
-  } catch (e) {
+  } catch {
     return 0;
   }
 }

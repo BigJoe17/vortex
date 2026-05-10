@@ -10,7 +10,6 @@
 
 import { ethers } from 'ethers'
 import { getProvider } from '@services/blockchain/blockchainService'
-import { secureStorage } from '@services/storage/secureStorage'
 import type { NetworkId } from '@store/walletStore'
 
 export interface GasEstimate {
@@ -92,34 +91,21 @@ export async function sendNativeTransaction(
   to: string,
   amountEther: string,
   network: NetworkId,
-  privateKey?: string,
+  privateKey: string,
 ): Promise<SendResult> {
 
   if (!isValidAddress(to)) {
     throw new Error('Invalid recipient address')
   }
 
-  const provider = getProvider(network)
-
-  // If privateKey is provided (new encrypted flow), use it directly.
-  // Otherwise, fall back to legacy unencrypted storage for backward compat.
-  let signerKey: string
-
-  if (privateKey) {
-    signerKey = privateKey
-  } else {
-    const wallet = await secureStorage.getWallet()
-    if (!wallet) {
-      throw new Error('No wallet found. Please import a wallet first.')
-    }
-    signerKey = wallet.privateKey
+  if (!privateKey) {
+    throw new Error('Private key required. Decrypt with PIN before signing.')
   }
 
-  const signer = new ethers.Wallet(signerKey, provider)
-  const fromAddress = signer.address
+  const provider = getProvider(network)
 
-  // Discard reference to raw key — only signer holds it now
-  signerKey = ''
+  const signer = new ethers.Wallet(privateKey, provider)
+  const fromAddress = signer.address
 
   const amountWei = ethers.parseEther(amountEther)
 

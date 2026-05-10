@@ -1,7 +1,8 @@
 /**
  * Transaction Store
  *
- * Manages transaction history and pending transactions.
+ * Manages pending (local) transactions.
+ * On-chain history is managed by React Query in useTransactionHistory hook.
  */
 
 import {create} from 'zustand';
@@ -36,6 +37,7 @@ interface TransactionState {
   setTransactions: (transactions: Transaction[]) => void;
   addTransaction: (tx: Transaction) => void;
   updateTransaction: (hash: string, updates: Partial<Transaction>) => void;
+  removePending: (hash: string) => void;
   setLoading: (loading: boolean) => void;
   reset: () => void;
 }
@@ -46,7 +48,7 @@ const initialState = {
   isLoading: false,
 };
 
-export const useTransactionStore = create<TransactionState>((set, get) => ({
+export const useTransactionStore = create<TransactionState>((set) => ({
   ...initialState,
 
   setTransactions: (transactions) => set({transactions}),
@@ -69,7 +71,6 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
         tx.hash === hash ? {...tx, ...updates} : tx,
       );
 
-      // Move confirmed/failed transactions from pending to history
       const nowConfirmed = updatedPending.filter(
         (tx) => tx.status !== 'pending',
       );
@@ -82,6 +83,13 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
         transactions: [...nowConfirmed, ...state.transactions],
       };
     }),
+
+  removePending: (hash) =>
+    set((state) => ({
+      pendingTransactions: state.pendingTransactions.filter(
+        (tx) => tx.hash !== hash,
+      ),
+    })),
 
   setLoading: (isLoading) => set({isLoading}),
 

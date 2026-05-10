@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import {getCoinGeckoBaseUrl} from '@shared/utils/env';
 
 export interface MarketData {
   price: number;
@@ -45,6 +45,7 @@ export async function fetchMarketData(
   tokens: { symbol: string; address: string }[],
   network: 'ethereum' | 'polygon'
 ): Promise<Record<string, MarketData>> {
+  const baseUrl = getCoinGeckoBaseUrl();
   const platformId = network === 'polygon' ? 'polygon-pos' : 'ethereum';
   const marketDataMap: Record<string, MarketData> = {};
   
@@ -79,14 +80,14 @@ export async function fetchMarketData(
   // Run concurrently to speed up network requests
   const fallbackPromises = unknownTokens.map(async (token) => {
     try {
-      const response = await fetch(`https://api.coingecko.com/api/v3/coins/${platformId}/contract/${token.address}`);
+      const response = await fetch(`${baseUrl}/coins/${platformId}/contract/${token.address}`);
       if (!response.ok) return;
-      const data = await response.json();
+      const data = (await response.json()) as { id?: string };
       if (data.id) {
         knownIds.push(data.id);
-        contractToIdCache.set(token.address.toLowerCase(), data.id); // Cache it!
+        contractToIdCache.set(token.address.toLowerCase(), data.id);
       }
-    } catch (e) {
+    } catch {
       console.warn(`[MarketService] Failed to resolve contract ${token.address}`);
     }
   });
@@ -100,9 +101,16 @@ export async function fetchMarketData(
     const idsQuery = uniqueIds.join(',');
     
     try {
-      const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${idsQuery}`);
+      const response = await fetch(`${baseUrl}/coins/markets?vs_currency=usd&ids=${idsQuery}`);
       if (response.ok) {
-        const data = await response.json();
+        interface CoinMarket {
+          id: string;
+          current_price?: number;
+          image?: string;
+          name?: string;
+          symbol?: string;
+        }
+        const data = (await response.json()) as CoinMarket[];
         for (const coin of data) {
           marketDataMap[coin.id] = {
             price: coin.current_price || 0,
@@ -126,10 +134,13 @@ export async function fetchMarketData(
  */
 export async function fetchTrendingTokens() {
   try {
-    const response = await fetch('https://api.coingecko.com/api/v3/search/trending');
+    const response = await fetch(`${getCoinGeckoBaseUrl()}/search/trending`);
     if (!response.ok) return [];
-    const data = await response.json();
-    return data.coins.map((c: any) => ({
+    interface TrendingCoin {
+      item: { id: string; name: string; symbol: string; thumb: string; price_btc: number };
+    }
+    const data = (await response.json()) as { coins: TrendingCoin[] };
+    return data.coins.map((c) => ({
       id: c.item.id,
       name: c.item.name,
       symbol: c.item.symbol,

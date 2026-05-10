@@ -1,97 +1,98 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Vortex Wallet
 
-# Getting Started
+Vortex is a React Native Expo non-custodial wallet MVP focused on Polygon Mainnet. It supports wallet creation/import, encrypted private-key storage, PIN and biometric unlock, native MATIC sends, ERC-20 discovery and sends, CoinGecko pricing, and Alchemy-backed transaction history.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Requirements
 
-## Step 1: Start Metro
+- Node.js 22.11 or newer
+- npm
+- Expo CLI through `npx expo`
+- Android Studio or Xcode for native builds
+- An Alchemy API key with Polygon Mainnet access
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Environment
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+Create a local `.env` from `.env.example`:
 
 ```sh
-# Using npm
+cp .env.example .env
+```
+
+Required values:
+
+```sh
+EXPO_PUBLIC_ALCHEMY_API_KEY=
+EXPO_PUBLIC_COINGECKO_BASE_URL=https://api.coingecko.com/api/v3
+EXPO_PUBLIC_SENTRY_DSN=
+```
+
+Only `EXPO_PUBLIC_*` variables are read by app code so Expo can inline them into the JavaScript bundle. Never commit `.env` or environment files with real keys.
+
+## Install
+
+```sh
+npm install
+```
+
+## Development
+
+```sh
 npm start
-
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
 npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Testing
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+```sh
+npm test
+npx tsc --noEmit
+npm run lint
+```
 
-## Step 3: Modify your app
+The service tests cover encryption roundtrips, incorrect PIN handling, corrupted encrypted payloads, mnemonic/private-key wallet derivation, ERC-20 unit conversion, transfer payload generation, and network-fee math.
 
-Now that you have successfully run the app, let's make changes!
+## Release Builds
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+For a controlled MVP preview build:
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+```sh
+npx expo prebuild
+npx expo run:android --variant release
+```
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+If using EAS:
 
-## Congratulations! :tada:
+```sh
+npx eas build --profile preview --platform android
+```
 
-You've successfully run and modified your React Native App. :partying_face:
+Before distributing a preview APK, verify cold launch, wallet import, receive, native send, ERC-20 send, history refresh, lock/unlock, background/foreground behavior, and airplane-mode recovery on a physical Android device.
 
-### Now what?
+## Architecture
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+- `src/services/wallet`: pure wallet creation/import helpers.
+- `src/services/security`: encryption, biometric auth, and session timers.
+- `src/services/storage`: SecureStore wrapper for encrypted wallet data.
+- `src/services/blockchain`: RPC providers, native balances, ERC-20 transfer helpers.
+- `src/services/token`: Alchemy ERC-20 discovery and metadata.
+- `src/services/pricing`: CoinGecko market data enrichment.
+- `src/services/transaction`: native send and Alchemy history.
+- `src/store`: Zustand state for auth, wallet balances, tokens, and transactions.
+- `src/screens/wallet`: wallet home, send, and confirmation flows.
 
-# Troubleshooting
+## Security Notes
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+- Private keys are encrypted before storage.
+- PINs are stored only as hashes.
+- Decrypted private keys are scoped to signing functions and are not stored in Zustand.
+- `.env` files are ignored by git.
+- Runtime crashes and transaction failures are reported to Sentry only when `EXPO_PUBLIC_SENTRY_DSN` is configured.
 
-# Learn More
+## Known MVP Limits
 
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- Polygon Mainnet is the primary supported production network.
+- CoinGecko pricing can be delayed or rate limited.
+- ERC-20 discovery depends on Alchemy token APIs.
+- No in-app seed phrase backup verification after initial setup.
+- No swap, fiat onramp, NFT detail, or hardware wallet support in the MVP.

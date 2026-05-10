@@ -10,7 +10,7 @@
  */
 
 import React, {useEffect, useRef} from 'react';
-import {View, StyleSheet, TouchableOpacity, Text, Animated, Dimensions, Platform} from 'react-native';
+import {View, StyleSheet, TouchableOpacity, Text, Animated, Dimensions} from 'react-native';
 import {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 import {BlurView} from 'expo-blur';
 import {Ionicons} from '@expo/vector-icons';

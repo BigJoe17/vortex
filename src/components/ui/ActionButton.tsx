@@ -18,7 +18,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import {LinearGradient} from 'expo-linear-gradient';
-import {useTheme, typography, spacing, borderRadius} from '@theme';
+import {useTheme, typography, borderRadius} from '@theme';
 
 type Variant = 'primary' | 'secondary' | 'danger';
 
@@ -39,7 +39,7 @@ export function ActionButton({
   loading = false,
   style,
 }: ActionButtonProps): React.JSX.Element {
-  const {colors, mode} = useTheme();
+  const {colors} = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {

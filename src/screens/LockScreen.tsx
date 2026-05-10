@@ -9,6 +9,9 @@ import {resetSessionTimer} from '@services/security/sessionManager';
 import {useWalletStore} from '@store/walletStore';
 import {colors, typography, spacing, borderRadius} from '@theme';
 
+const MAX_PIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60 * 1000 * 5;
+
 export function LockScreen(): React.JSX.Element {
   const unlock = useAuthStore(state => state.unlock);
   const logout = useAuthStore(state => state.logout);
@@ -17,26 +20,51 @@ export function LockScreen(): React.JSX.Element {
 
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+
+  const isLockedOut = lockedUntil !== null && Date.now() < lockedUntil;
 
   const handlePinUnlock = async () => {
     if (!pinInput || pinInput.length < 6) return;
+
+    if (isLockedOut) {
+      const remaining = Math.ceil(((lockedUntil ?? 0) - Date.now()) / 1000);
+      setPinError(`Too many attempts. Try again in ${remaining}s`);
+      return;
+    }
     
     const storedHash = await secureStorage.getPinHash();
     if (storedHash && verifyPin(pinInput, storedHash)) {
       setPinInput('');
       setPinError('');
+      setAttempts(0);
+      setLockedUntil(null);
       unlock();
       setTimeout(() => resetSessionTimer(), 0);
     } else {
-      setPinError('Incorrect PIN');
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      setPinInput('');
+
+      if (newAttempts >= MAX_PIN_ATTEMPTS) {
+        setLockedUntil(Date.now() + LOCKOUT_DURATION_MS);
+        setPinError(`Too many failed attempts. Locked for 60 seconds.`);
+      } else {
+        setPinError(`Incorrect PIN (${MAX_PIN_ATTEMPTS - newAttempts} attempts remaining)`);
+      }
     }
   };
 
   const handleBiometricUnlock = async () => {
-    const result = await authenticateUser('Unlock Wallet');
-    if (result.success) {
-      unlock();
-      resetSessionTimer();
+    try {
+      const result = await authenticateUser('Unlock Wallet');
+      if (result.success) {
+        unlock();
+        resetSessionTimer();
+      }
+    } catch {
+      setPinError('Biometric authentication unavailable. Use PIN.');
     }
   };
 

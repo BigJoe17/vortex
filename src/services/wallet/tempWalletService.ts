@@ -1,33 +1,39 @@
 /**
  * Temporary Wallet Service
  *
- * Securely maintains the raw generated wallet completely in volatile memory.
+ * Holds the raw generated wallet in volatile memory ONLY during onboarding.
+ * Auto-clears after 5 minutes as a safety net against abandoned flows.
  * Never persists data to disk or global state stores.
  */
 
 import { WalletResult } from './walletService';
 
+const AUTO_CLEAR_MS = 5 * 60 * 1000;
+
 let tempWallet: WalletResult | null = null;
+let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const tempWalletService = {
-  /**
-   * Stashes the currently generating wallet in deep memory
-   */
   setTempWallet(wallet: WalletResult): void {
     tempWallet = wallet;
+
+    if (clearTimer) {
+      clearTimeout(clearTimer);
+    }
+    clearTimer = setTimeout(() => {
+      tempWalletService.clearTempWallet();
+    }, AUTO_CLEAR_MS);
   },
 
-  /**
-   * Retrieves the raw wallet for phrase presentation / encryption dumping
-   */
   getTempWallet(): WalletResult | null {
     return tempWallet;
   },
 
-  /**
-   * Critically erases the memory footprint to leave no trace locally
-   */
   clearTempWallet(): void {
+    if (clearTimer) {
+      clearTimeout(clearTimer);
+      clearTimer = null;
+    }
     tempWallet = null;
   },
 };

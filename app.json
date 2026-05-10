@@ -3,15 +3,12 @@
   "displayName": "VortexWallet",
   "expo": {
     "name": "VortexWallet",
-    "slug": "vortex-wallet",
+    "slug": "vortexwallet",
     "displayName": "VortexWallet",
-
     "icon": "./src/assets/logo.png",
-
     "plugins": [
       "expo-secure-store"
     ],
-
     "android": {
       "package": "com.bigjoe100.vortexwallet",
       "adaptiveIcon": {
@@ -23,6 +20,9 @@
       "eas": {
         "projectId": "40f4b5cb-01de-45bf-8a7d-cf82f86d8be8"
       }
+    },
+    "ios": {
+      "bundleIdentifier": "com.bigjoe100.vortexwallet"
     }
   }
 }

@@ -12,6 +12,7 @@ module.exports = {
           '@shared': './src/shared',
           '@services': './src/services',
           '@store': './src/store',
+          '@hooks': './src/hooks',
           '@theme': './src/theme',
         },
       },

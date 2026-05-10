@@ -97,6 +97,30 @@ export function decryptPrivateKey(encryptedPayload: string, pin: string): string
 }
 
 /**
+ * Validate PIN meets minimum security requirements.
+ * Rejects trivial sequences and repeated digits.
+ */
+export function validatePinStrength(pin: string): {valid: boolean; reason?: string} {
+  if (!pin || pin.length < 6) {
+    return {valid: false, reason: 'PIN must be at least 6 digits'};
+  }
+
+  // Reject all-same digits (e.g., 111111, 000000)
+  if (/^(.)\1+$/.test(pin)) {
+    return {valid: false, reason: 'PIN cannot be all the same digit'};
+  }
+
+  // Reject simple ascending/descending sequences (123456, 654321)
+  const ascending = '0123456789';
+  const descending = '9876543210';
+  if (ascending.includes(pin) || descending.includes(pin)) {
+    return {valid: false, reason: 'PIN cannot be a simple sequence'};
+  }
+
+  return {valid: true};
+}
+
+/**
  * Hash a PIN using SHA-256.
  * Only the hash is stored — the raw PIN is never persisted.
  */

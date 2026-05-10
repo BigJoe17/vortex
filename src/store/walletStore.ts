@@ -45,7 +45,7 @@ interface WalletState {
 
 const initialState = {
   address: null as string | null,
-  network: 'polygon-amoy' as NetworkId,
+  network: 'polygon' as NetworkId,
   tokens: [] as TokenBalance[],
   totalBalanceUsd: '0.00',
   isLoadingBalances: false,

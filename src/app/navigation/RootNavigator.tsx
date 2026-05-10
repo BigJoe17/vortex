@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text, Image } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Image, TouchableOpacity } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '@store/authStore';
 import { useWalletStore } from '@store/walletStore';
@@ -17,19 +17,22 @@ import { AuthNavigator } from './AuthNavigator';
 import { MainNavigator } from './MainNavigator';
 import { LockScreen } from '../../screens/LockScreen';
 import { colors, typography, spacing, borderRadius } from '@theme';
+import {captureError} from '@services/monitoring/errorReporting';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator(): React.JSX.Element {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
-  const isBiometricEnabled = useAuthStore(state => state.isBiometricEnabled);
   const isLocked = useAuthStore(state => state.isLocked);
   const unlock = useAuthStore(state => state.unlock);
+  const logout = useAuthStore(state => state.logout);
 
   const login = useAuthStore(state => state.login);
   const initWallet = useWalletStore(state => state.initWallet);
+  const clearWallet = useWalletStore(state => state.clearWallet);
   const [isRestoring, setIsRestoring] = useState(true);
+  const [restoreError, setRestoreError] = useState('');
 
   useEffect(() => {
     restoreWallet();
@@ -64,6 +67,12 @@ export function RootNavigator(): React.JSX.Element {
         );
       }
     } catch (error) {
+      captureError(error, {source: 'RootNavigator.restoreWallet'});
+      setRestoreError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to restore wallet data.',
+      );
       console.error('[RootNavigator] Failed to restore wallet:', error);
     } finally {
       setIsRestoring(false);
@@ -76,6 +85,13 @@ export function RootNavigator(): React.JSX.Element {
         }, 500);
       }
     }
+  };
+
+  const handleResetCorruptedWallet = async () => {
+    await secureStorage.clearAll();
+    clearWallet();
+    logout();
+    setRestoreError('');
   };
 
   // Show splash while checking storage
@@ -93,6 +109,26 @@ export function RootNavigator(): React.JSX.Element {
           color={colors.brand.primary}
           style={splashStyles.spinner}
         />
+      </View>
+    );
+  }
+
+  if (restoreError) {
+    return (
+      <View style={splashStyles.container}>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={splashStyles.logoImage}
+          resizeMode="contain"
+        />
+        <Text style={splashStyles.title}>Wallet recovery needed</Text>
+        <Text style={splashStyles.recoveryText}>{restoreError}</Text>
+        <TouchableOpacity
+          activeOpacity={0.75}
+          onPress={handleResetCorruptedWallet}
+          style={splashStyles.recoveryButton}>
+          <Text style={splashStyles.recoveryButtonText}>Reset Wallet</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -143,6 +179,27 @@ const splashStyles = StyleSheet.create({
   },
   spinner: {
     marginTop: spacing.xl,
+  },
+  recoveryText: {
+    ...typography.bodyMedium,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    paddingHorizontal: spacing['2xl'],
+    marginTop: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  recoveryButton: {
+    minHeight: 48,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.status.error,
+    paddingHorizontal: spacing.xl,
+  },
+  recoveryButtonText: {
+    ...typography.labelLarge,
+    color: colors.text.inverse,
+    fontWeight: '800',
   },
   unlockBtnContainer: {
     alignItems: 'center',

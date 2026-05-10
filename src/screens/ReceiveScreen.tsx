@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pageTitle: {
-    ...typography.h3,
+    ...typography.headingMedium,
     fontWeight: '700',
   },
   content: {

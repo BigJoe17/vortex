@@ -7,7 +7,7 @@
 
 import React from 'react';
 import {View, Text, StyleSheet, Image, TouchableOpacity} from 'react-native';
-import {useTheme, typography, spacing, borderRadius} from '@theme';
+import {useTheme, typography, spacing} from '@theme';
 import {formatTokenBalance} from '@shared/utils/formatting';
 
 interface TokenRowProps {

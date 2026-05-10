@@ -6,7 +6,7 @@ import {AuthStackParamList} from '../app/navigation/types';
 import {colors, typography, spacing, borderRadius} from '@theme';
 import {ActionButton} from '../components/ui/ActionButton';
 import {tempWalletService} from '@services/wallet/tempWalletService';
-import {encryptPrivateKey, hashPin} from '@services/security/encryptionService';
+import {encryptPrivateKey, hashPin, validatePinStrength} from '@services/security/encryptionService';
 import {secureStorage} from '@services/storage/secureStorage';
 import {useAuthStore} from '@store/authStore';
 import {useWalletStore} from '@store/walletStore';
@@ -33,13 +33,17 @@ export function ConfirmSeedScreen({navigation, route}: Props): React.JSX.Element
       const phrase = rawWallet.mnemonic.split(' ');
       setWords(phrase);
 
-      // Randomly select 4 UNIQUE indices from 0-11
       const indices = new Set<number>();
       while (indices.size < 4) {
          indices.add(Math.floor(Math.random() * 12));
       }
       setTestIndices(Array.from(indices).sort((a,b) => a - b));
     }
+
+    return () => {
+      setWords([]);
+      setInputs(['', '', '', '']);
+    };
   }, []);
 
   const handleVerifySeed = () => {
@@ -53,8 +57,13 @@ export function ConfirmSeedScreen({navigation, route}: Props): React.JSX.Element
   };
 
   const handleFinishSetup = async () => {
-    if (pin.length < 6 || pin !== confirmPin) {
-       setError('PIN must be 6+ digits and match.');
+    const pinCheck = validatePinStrength(pin);
+    if (!pinCheck.valid) {
+       setError(pinCheck.reason ?? 'PIN is too weak.');
+       return;
+    }
+    if (pin !== confirmPin) {
+       setError('PINs do not match.');
        return;
     }
 

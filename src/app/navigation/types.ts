@@ -23,29 +23,33 @@ export type MainTabParamList = {
 
 export type WalletStackParamList = {
   WalletHome: undefined;
-  SendScreen: undefined;
+  SendScreen:
+    | {
+        tokenAddress?: string;
+      }
+    | undefined;
   Receive: undefined;
   ConfirmSend: {
     to: string;
     amount: string;
     gasFee: string;
+    asset: SendAssetParam;
   };
 };
 
-export type DashboardStackParamList = {
-  DashboardHome: undefined;
-  TokenDetail: {tokenAddress: string; symbol: string};
-  Send: {tokenAddress?: string};
-  Receive: undefined;
+export type SendAssetParam = {
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: string;
+  balanceFormatted: string;
+  isNative: boolean;
+  logoUri?: string;
 };
 
-export type TransactionsStackParamList = {
-  TransactionList: undefined;
-  TransactionDetail: {txHash: string};
-};
 
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
 };
-
