@@ -1,7 +1,28 @@
 {
   "name": "VortexWallet",
   "displayName": "VortexWallet",
-  "plugins": [
-    "expo-secure-store"
-  ]
+  "expo": {
+    "name": "VortexWallet",
+    "slug": "vortex-wallet",
+    "displayName": "VortexWallet",
+
+    "icon": "./src/assets/logo.png",
+
+    "plugins": [
+      "expo-secure-store"
+    ],
+
+    "android": {
+      "package": "com.bigjoe100.vortexwallet",
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/logo.png",
+        "backgroundColor": "#07080F"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "40f4b5cb-01de-45bf-8a7d-cf82f86d8be8"
+      }
+    }
+  }
 }

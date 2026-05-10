@@ -30,7 +30,7 @@ import {useTransactionStore} from '@store/transactionStore';
 import {useTokenStore} from '@store/tokenStore';
 import {fetchWalletBalances} from '@services/blockchain/blockchainService';
 import {fetchTokens} from '@services/token/tokenService';
-import {fetchTokenPrices, getTokenUsdValue} from '@services/pricing/priceService';
+import {fetchTokenPrices, getTokenUsdValue, fetchNativeTokenPrice} from '@services/pricing/priceService';
 import {
   isValidAddress,
   estimateGasFee,
@@ -48,6 +48,7 @@ import {ActionButton} from '../../components/ui/ActionButton';
 import {authenticateUser} from '../../services/security/biometricService';
 import {decryptPrivateKey, verifyPin} from '../../services/security/encryptionService';
 import {secureStorage} from '../../services/storage/secureStorage';
+import ReceiveScreen from '../../screens/ReceiveScreen';
 import type {MainTabParamList, WalletStackParamList} from './types';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 
@@ -84,7 +85,12 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
     try {
       // 1. Native balance (ETH/MATIC)
       const balances = await fetchWalletBalances(address, network);
-      setTokens(balances);
+      const nativePrice = await fetchNativeTokenPrice(network as 'ethereum' | 'polygon');
+      const balancesWithUsd = balances.map((b) => ({
+        ...b,
+        balanceUsd: getTokenUsdValue(b.balanceFormatted, nativePrice),
+      }));
+      setTokens(balancesWithUsd);
 
       // 2. ERC-20 Tokens
       const rawErc20s = await fetchTokens(address, network);
@@ -105,7 +111,7 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
       setLoadingBalances(false);
       setErc20Loading(false);
     }
-  }, [address, network]);
+  }, [address, network, setErc20Loading, setErc20Tokens, setLoadingBalances, setTokens]);
 
   useEffect(() => {
     loadBalances();
@@ -149,7 +155,7 @@ function WalletHomeScreen({navigation}: {navigation: WalletNavProp}): React.JSX.
           network={network}
           totalUsdDisplay={displayTotalUsd}
           onSend={() => navigation.navigate('SendScreen')}
-          onReceive={() => Alert.alert('Receive', 'Show QR code modal')}
+          onReceive={() => navigation.navigate('Receive')}
           onBuy={() => Alert.alert('Buy', 'Fiat onramp integration coming soon')}
           onSwap={() => Alert.alert('Swap', 'DEX integration coming soon')}
         />
@@ -276,7 +282,7 @@ function SendScreen({navigation}: {navigation: WalletNavProp}): React.JSX.Elemen
     } finally {
       setIsEstimating(false);
     }
-  }, [toAddress, amount, network, nativeBalance]);
+  }, [toAddress, amount, network, nativeBalance, navigation]);
 
   return (
     <View style={[styles.screen, {backgroundColor: colors.background.primary}]}>
@@ -604,6 +610,7 @@ function ConfirmSendScreen({route, navigation}: {
   );
 }
 
+
 // ── Wallet Stack Navigator ───────────────────────────────────
 
 function WalletStackNavigator(): React.JSX.Element {
@@ -611,6 +618,7 @@ function WalletStackNavigator(): React.JSX.Element {
     <WalletStack.Navigator screenOptions={{headerShown: false}}>
       <WalletStack.Screen name="WalletHome" component={WalletHomeScreen} />
       <WalletStack.Screen name="SendScreen" component={SendScreen} />
+      <WalletStack.Screen name="Receive" component={ReceiveScreen} />
       <WalletStack.Screen name="ConfirmSend" component={ConfirmSendScreen} />
     </WalletStack.Navigator>
   );

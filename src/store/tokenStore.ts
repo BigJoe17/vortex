@@ -9,6 +9,7 @@ import type { TokenWithBalance } from '@services/token/tokenService';
 
 export interface TokenWithUsd extends TokenWithBalance {
   balanceUsd: string;
+  logo?: string;
 }
 
 interface TokenState {

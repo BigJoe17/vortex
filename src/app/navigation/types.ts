@@ -24,6 +24,7 @@ export type MainTabParamList = {
 export type WalletStackParamList = {
   WalletHome: undefined;
   SendScreen: undefined;
+  Receive: undefined;
   ConfirmSend: {
     to: string;
     amount: string;

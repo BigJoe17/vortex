@@ -79,6 +79,20 @@ export async function fetchTokenPrices(
   return results
 }
 
+export async function fetchNativeTokenPrice(network: 'ethereum' | 'polygon'): Promise<number> {
+  const coinId = network === 'polygon' ? 'matic-network' : 'ethereum';
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return 0;
+    const data = await response.json();
+    return data[coinId]?.usd ?? 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+
 export function getTokenUsdValue(
   balanceFormatted: string,
   priceUsd: number
